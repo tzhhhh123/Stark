@@ -133,7 +133,7 @@ class LTRTrainer(BaseTrainer):
         for loader in self.loaders:
             if loader.training:
                 try:
-                    lr_list = self.lr_scheduler.get_lr()
+                    lr_list = self.lr_scheduler.get_last_lr()
                 except:
                     lr_list = self.lr_scheduler._get_lr(self.epoch)
                 for i, lr in enumerate(lr_list):

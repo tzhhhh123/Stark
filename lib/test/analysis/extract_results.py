@@ -142,8 +142,12 @@ def extract_results(trackers, dataset, report_name, skip_missing_seq=False, plot
                     raise Exception('Result not found. {}'.format(results_path))
 
             # Calculate measures
+            # print(sum(target_visible))
+            # import pdb
+            # pdb.set_trace()
+
             err_overlap, err_center, err_center_normalized, valid_frame = calc_seq_err_robust(
-                pred_bb, anno_bb, seq.dataset, target_visible)
+                pred_bb.long(), anno_bb, seq.dataset, target_visible)
 
             avg_overlap_all[seq_id, trk_id] = err_overlap[valid_frame].mean()
 

@@ -8,11 +8,11 @@ from lib.test.evaluation import get_dataset, trackerlist
 trackers = []
 
 
-trackers.extend(trackerlist(name='stark_st', parameter_name='baseline_R101', dataset_name='lasot',
-                            run_ids=None, display_name='STARK-ST101'))
+trackers.extend(trackerlist(name='stark_st', parameter_name='baseline_anti_only', dataset_name='antiuav_test',
+                            run_ids=None, display_name='STARK-ST50'))
 
-dataset = get_dataset('lasot')
-plot_results(trackers, dataset, 'LaSOT', merge_results=True, plot_types=('success', 'norm_prec'),
+dataset = get_dataset('antiuav_test')
+plot_results(trackers, dataset, 'antiuav', merge_results=True, plot_types=('success', 'norm_prec'),
              skip_missing_seq=False, force_evaluation=True, plot_bin_gap=0.05)
-print_results(trackers, dataset, 'LaSOT', merge_results=True, plot_types=('success', 'prec', 'norm_prec'))
+print_results(trackers, dataset, 'antiuav', merge_results=True, plot_types=('success', 'prec', 'norm_prec'))
 # print_per_sequence_results(trackers, dataset, report_name="debug")

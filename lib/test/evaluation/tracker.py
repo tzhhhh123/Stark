@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 
-def trackerlist(name: str, parameter_name: str, dataset_name: str, run_ids = None, display_name: str = None,
+def trackerlist(name: str, parameter_name: str, dataset_name: str, run_ids=None, display_name: str = None,
                 result_only=False):
     """Generate list of trackers.
     args:
@@ -81,7 +81,6 @@ class Tracker:
 
         # Get init information
         init_info = seq.init_info()
-
         tracker = self.create_tracker(params)
 
         output = self._track_sequence(tracker, seq, init_info)
@@ -102,7 +101,8 @@ class Tracker:
         # object in frame i
 
         output = {'target_bbox': [],
-                  'time': []}
+                  'time': [],
+                  'conf_score': []}
         if tracker.params.save_all_boxes:
             output['all_boxes'] = []
             output['all_scores'] = []
@@ -121,7 +121,8 @@ class Tracker:
         out = tracker.initialize(image, init_info)
         if out is None:
             out = {}
-
+        # import pdb
+        # pdb.set_trace()
         prev_output = OrderedDict(out)
         init_default = {'target_bbox': init_info.get('init_bbox'),
                         'time': time.time() - start_time}
@@ -131,6 +132,22 @@ class Tracker:
 
         _store_outputs(out, init_default)
 
+        def frame2video(frames, save_path, dec=1):
+            writer = None
+            save_path = save_path.replace('.mkv', '.mp4')
+            save_path = save_path.replace('.webm', '.mp4')
+            for img in frames:
+                if writer is None:
+                    fourcc = cv.VideoWriter_fourcc(*"mp4v")
+                    writer = cv.VideoWriter(save_path, fourcc, 25 // dec,
+                                            (img.shape[1], img.shape[0]))
+                if writer is not None:
+                    writer.write(img)
+
+        # import pdb
+        # pdb.set_trace()
+        v_images = []
+        vis_video = False
         for frame_num, frame_path in enumerate(seq.frames[1:], start=1):
             image = self._read_image(frame_path)
 
@@ -140,13 +157,28 @@ class Tracker:
             info['previous_output'] = prev_output
 
             out = tracker.track(image, info)
+            out_box = out['target_bbox']
+            ##vis image
+            if vis_video:
+                _gt = seq.ground_truth_rect[frame_num]
+
+                cv.rectangle(image, (int(_gt[0]), int(_gt[1])), (int(_gt[0] + _gt[2]), int(_gt[1] + _gt[3])),
+                             (0, 255, 0))
+                cv.putText(image, str(out['conf_score'])[:4], (int(out_box[0]), int(out_box[1])), 1, 2,
+                           (0, 0, 255), 2)
+
+                cv.rectangle(image, (int(out_box[0]), int(out_box[1])),
+                             (int(out_box[0] + out_box[2]), int(out_box[1] + out_box[3])),
+                             (0, 255, 255))
+                v_images.append(image)
             prev_output = OrderedDict(out)
             _store_outputs(out, {'time': time.time() - start_time})
 
-        for key in ['target_bbox', 'all_boxes', 'all_scores']:
-            if key in output and len(output[key]) <= 1:
-                output.pop(key)
-
+            for key in ['target_bbox', 'all_boxes', 'all_scores']:
+                if key in output and len(output[key]) <= 1:
+                    output.pop(key)
+        if vis_video:
+            frame2video(v_images, '/mnt/data3/tzh/Stark/vis/{}.mp4'.format(seq.name))
         return output
 
     def run_video(self, videofilepath, optional_box=None, debug=None, visdom_info=None, save_results=False):
@@ -246,7 +278,8 @@ class Tracker:
                 ret, frame = cap.read()
                 frame_disp = frame.copy()
 
-                cv.putText(frame_disp, 'Select target ROI and press ENTER', (20, 30), cv.FONT_HERSHEY_COMPLEX_SMALL, 1.5,
+                cv.putText(frame_disp, 'Select target ROI and press ENTER', (20, 30), cv.FONT_HERSHEY_COMPLEX_SMALL,
+                           1.5,
                            (0, 0, 0), 1)
 
                 cv.imshow(display_name, frame_disp)
@@ -269,7 +302,6 @@ class Tracker:
             bbox_file = '{}.txt'.format(base_results_path)
             np.savetxt(bbox_file, tracked_bb, delimiter='\t', fmt='%d')
 
-
     def get_parameters(self):
         """Get parameters."""
         param_module = importlib.import_module('lib.test.parameter.{}'.format(self.name))
@@ -284,6 +316,3 @@ class Tracker:
             return decode_img(image_file[0], image_file[1])
         else:
             raise ValueError("type of image_file should be str or list")
-
-
-

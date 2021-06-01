@@ -87,6 +87,17 @@ def _save_tracker_output(seq: Sequence, tracker: Tracker, output: dict):
                 bbox_file = '{}_all_scores.txt'.format(base_results_path)
                 save_score(bbox_file, data)
 
+        if key == 'conf_score':
+            if isinstance(data[0], dict):
+                data_dict = _convert_dict(data)
+
+                for obj_id, d in data_dict.items():
+                    timings_file = '{}_{}_conf.txt'.format(base_results_path, obj_id)
+                    save_time(timings_file, d)
+            else:
+                timings_file = '{}_conf.txt'.format(base_results_path)
+                save_time(timings_file, data)
+
         elif key == 'time':
             if isinstance(data[0], dict):
                 data_dict = _convert_dict(data)

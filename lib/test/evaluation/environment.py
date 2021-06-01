@@ -15,6 +15,7 @@ class EnvSettings:
         self.uav_path = ''
         self.tpl_path = ''
         self.vot_path = ''
+        self.antiuav_path = ''
         self.got10k_path = ''
         self.lasot_path = ''
         self.trackingnet_path = ''
@@ -65,6 +66,7 @@ class EnvSettings_ITP:
         self.uav_path = ''
         self.tpl_path = ''
         self.vot_path = os.path.join(data_dir, 'VOT2019')
+        self.antiuav_path = os.path.join(data_dir, 'anti-uav')
         self.got10k_path = os.path.join(data_dir, 'got10k')
         self.got10k_lmdb_path = os.path.join(data_dir, 'got10k_lmdb')
         self.lasot_path = os.path.join(data_dir, 'lasot')

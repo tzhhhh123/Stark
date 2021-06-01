@@ -188,8 +188,11 @@ class BaseTrainer:
 
         # Load network
         checkpoint_dict = torch.load(checkpoint_path)
-
-        assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
+        # print(net_type)
+        # print(checkpoint_dict['net_type'])
+        # import pdb
+        # pdb.set_trace()
+        # assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
 
         if fields is None:
             fields = checkpoint_dict.keys()
@@ -206,7 +209,8 @@ class BaseTrainer:
             if key == 'net':
                 net.load_state_dict(checkpoint_dict[key])
             elif key == 'optimizer':
-                self.optimizer.load_state_dict(checkpoint_dict[key])
+                # self.optimizer.load_state_dict(checkpoint_dict[key])
+                continue
             else:
                 setattr(self, key, checkpoint_dict[key])
 

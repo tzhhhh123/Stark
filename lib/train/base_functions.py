@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data.distributed import DistributedSampler
 # datasets related
-from lib.train.dataset import Lasot, Got10k, MSCOCOSeq, ImagenetVID, TrackingNet
+from lib.train.dataset import Lasot, Got10k, MSCOCOSeq, ImagenetVID, TrackingNet, AntiUAV
 from lib.train.dataset import Lasot_lmdb, Got10k_lmdb, MSCOCOSeq_lmdb, ImagenetVID_lmdb, TrackingNet_lmdb
 from lib.train.data import sampler, opencv_loader, processing, LTRLoader
 import lib.train.data.transforms as tfm
@@ -27,7 +27,9 @@ def names2datasets(name_list: list, settings, image_loader):
     assert isinstance(name_list, list)
     datasets = []
     for name in name_list:
-        assert name in ["LASOT", "GOT10K_vottrain", "GOT10K_votval", "GOT10K_train_full", "COCO17", "VID", "TRACKINGNET"]
+        # print(name)
+        assert name in ["LASOT", "GOT10K_vottrain", "GOT10K_votval", "GOT10K_train_full", "COCO17", "VID",
+                        "TRACKINGNET", "AntiUAV_train", "AntiUAV_val"]
         if name == "LASOT":
             if settings.use_lmdb:
                 print("Building lasot dataset from lmdb")
@@ -43,7 +45,8 @@ def names2datasets(name_list: list, settings, image_loader):
         if name == "GOT10K_train_full":
             if settings.use_lmdb:
                 print("Building got10k_train_full from lmdb")
-                datasets.append(Got10k_lmdb(settings.env.got10k_lmdb_dir, split='train_full', image_loader=image_loader))
+                datasets.append(
+                    Got10k_lmdb(settings.env.got10k_lmdb_dir, split='train_full', image_loader=image_loader))
             else:
                 datasets.append(Got10k(settings.env.got10k_dir, split='train_full', image_loader=image_loader))
         if name == "GOT10K_votval":
@@ -71,6 +74,10 @@ def names2datasets(name_list: list, settings, image_loader):
             else:
                 # raise ValueError("NOW WE CAN ONLY USE TRACKINGNET FROM LMDB")
                 datasets.append(TrackingNet(settings.env.trackingnet_dir, image_loader=image_loader))
+        if name == "AntiUAV_train":
+            datasets.append(AntiUAV(image_loader=image_loader, split='train'))
+        if name == "AntiUAV_val":
+            datasets.append(AntiUAV(image_loader=image_loader, split='train'))
     return datasets
 
 
@@ -114,12 +121,13 @@ def build_dataloaders(cfg, settings):
     sampler_mode = getattr(cfg.DATA, "SAMPLER_MODE", "causal")
     train_cls = getattr(cfg.TRAIN, "TRAIN_CLS", False)
     print("sampler_mode", sampler_mode)
-    dataset_train = sampler.TrackingSampler(datasets=names2datasets(cfg.DATA.TRAIN.DATASETS_NAME, settings, opencv_loader),
-                                            p_datasets=cfg.DATA.TRAIN.DATASETS_RATIO,
-                                            samples_per_epoch=cfg.DATA.TRAIN.SAMPLE_PER_EPOCH,
-                                            max_gap=cfg.DATA.MAX_SAMPLE_INTERVAL, num_search_frames=settings.num_search,
-                                            num_template_frames=settings.num_template, processing=data_processing_train,
-                                            frame_sample_mode=sampler_mode, train_cls=train_cls)
+    dataset_train = sampler.TrackingSampler(
+        datasets=names2datasets(cfg.DATA.TRAIN.DATASETS_NAME, settings, opencv_loader),
+        p_datasets=cfg.DATA.TRAIN.DATASETS_RATIO,
+        samples_per_epoch=cfg.DATA.TRAIN.SAMPLE_PER_EPOCH,
+        max_gap=cfg.DATA.MAX_SAMPLE_INTERVAL, num_search_frames=settings.num_search,
+        num_template_frames=settings.num_template, processing=data_processing_train,
+        frame_sample_mode=sampler_mode, train_cls=train_cls)
 
     train_sampler = DistributedSampler(dataset_train) if settings.local_rank != -1 else None
     shuffle = False if settings.local_rank != -1 else True
