@@ -13,7 +13,9 @@ dataset_dict = dict(
     antiuav_test=DatasetInfo(module=pt % "antiuav", class_name="AntiUAVDataset", kwargs=dict(split='val')),
     got10k_ltrval=DatasetInfo(module=pt % "got10k", class_name="GOT10KDataset", kwargs=dict(split='ltrval')),
     lasot=DatasetInfo(module=pt % "lasot", class_name="LaSOTDataset", kwargs=dict()),
-    lasot_lmdb=DatasetInfo(module=pt % "lasot_lmdb", class_name="LaSOTlmdbDataset", kwargs=dict())
+    lasot_lmdb=DatasetInfo(module=pt % "lasot_lmdb", class_name="LaSOTlmdbDataset", kwargs=dict()),
+    tnl2k=DatasetInfo(module=pt % "tnl2k", class_name="TNL2KDataset", kwargs=dict()),
+    otb=DatasetInfo(module=pt % "otb", class_name="OTBDataset", kwargs=dict()),
 )
 
 

@@ -18,6 +18,7 @@ class EnvSettings:
         self.antiuav_path = ''
         self.got10k_path = ''
         self.lasot_path = ''
+        self.tnl2k_path = ''
         self.trackingnet_path = ''
         self.davis_dir = ''
         self.youtubevos_dir = ''

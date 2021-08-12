@@ -162,11 +162,12 @@ class Transformer(nn.Module):
                     0, 1)  ##(B,N,30) x (B,30,C) --> (B,N,C)  -->(N,B,C)
             else:
                 words_pool = self.bert_fc(words_pool)
-        ###only use temp
-        if self.num_words_layers == -1:
-            feat = feat[64:]
-            mask = mask[:, 64:]
-            pos_embed = pos_embed[64:]
+
+            ###only use temp
+            if self.num_words_layers == -1:
+                feat = feat[64:]
+                mask = mask[:, 64:]
+                pos_embed = pos_embed[64:]
 
         if self.encoder is None:
             memory = feat

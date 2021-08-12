@@ -14,6 +14,7 @@ def create_default_local_file():
         'lasot_dir': empty_str,
         'got10k_dir': empty_str,
         'antiuav_dir': empty_str,
+        'tnl2k_dir': empty_str,
         'trackingnet_dir': empty_str,
         'coco_dir': empty_str,
         'lvis_dir': empty_str,

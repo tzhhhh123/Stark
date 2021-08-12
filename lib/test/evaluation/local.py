@@ -13,7 +13,7 @@ def local_env_settings():
     settings.got_reports_path = ''
     settings.lasot_lmdb_path = '/mnt/data1/tzh/data/LaSOT/LaSOTBenchmark_lmdb'
     settings.lasot_path = '/mnt/data1/tzh/data/LaSOT/LaSOTBenchmark'
-    settings.tnl2k_path = '/mnt/data1/tzh/data/TNL2k/'
+    settings.tnl2k_path = '/mnt/data1/tzh/data/TNL2K/'
     settings.network_path = '/mnt/data1/tzh/Stark/test/networks'    # Where tracking networks are stored.
     settings.nfs_path = ''
     settings.otb_path = ''

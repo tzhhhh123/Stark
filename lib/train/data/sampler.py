@@ -171,10 +171,11 @@ class TrackingSampler(torch.utils.data.Dataset):
                 # check whether data is valid
                 valid = data['valid']
             except Exception as e:
-                print(e)
-                print('error in sampler')
-                import ipdb
-                ipdb.set_trace()
+                # import ipdb
+                # import traceback
+                # print(traceback.format_exc())
+                # ipdb.set_trace()
+                print(seq_id, dataset._get_sequence_path(seq_id))
                 valid = False
         return data
 

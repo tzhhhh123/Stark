@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data.distributed import DistributedSampler
 # datasets related
-from lib.train.dataset import Lasot, Got10k, MSCOCOSeq, ImagenetVID, TrackingNet, AntiUAV, TNL2k
+from lib.train.dataset import Lasot, Got10k, MSCOCOSeq, ImagenetVID, TrackingNet, AntiUAV, TNL2K, OTB
 from lib.train.dataset import Lasot_lmdb, Got10k_lmdb, MSCOCOSeq_lmdb, ImagenetVID_lmdb, TrackingNet_lmdb
 from lib.train.data import sampler, opencv_loader, processing, LTRLoader
 import lib.train.data.transforms as tfm
@@ -30,7 +30,7 @@ def names2datasets(name_list: list, settings, image_loader):
     for name in name_list:
         # print(name)
         assert name in ["LASOT", "LASOT_val", "GOT10K_vottrain", "GOT10K_votval", "GOT10K_train_full", "COCO17", "VID",
-                        "TRACKINGNET", "AntiUAV_train", "AntiUAV_val", "TNL2K", "TNL2K_val"]
+                        "TRACKINGNET", "AntiUAV_train", "AntiUAV_val", "TNL2K", "TNL2K_val", "OTB", "OTB_val"]
         if name == "LASOT":
             if settings.use_lmdb:
                 print("Building lasot dataset from lmdb")
@@ -84,11 +84,15 @@ def names2datasets(name_list: list, settings, image_loader):
         if name == "AntiUAV_train":
             datasets.append(AntiUAV(image_loader=image_loader, split='train'))
         if name == "AntiUAV_val":
-            datasets.append(AntiUAV(image_loader=image_loader, split='train'))
+            datasets.append(AntiUAV(image_loader=image_loader, split='val'))
         if name == "TNL2K":
-            datasets.append(TNL2k(settings.env.tnl2k_dir, split='val', image_loader=image_loader))
+            datasets.append(TNL2K(settings.env.tnl2k_dir, split='train', image_loader=image_loader))
         if name == "TNL2K_val":
-            datasets.append(TNL2k(settings.env.tnl2k_dir, split='val', image_loader=image_loader))
+            datasets.append(TNL2K(settings.env.tnl2k_dir, split='val', image_loader=image_loader))
+        if name == "OTB":
+            datasets.append(OTB(split='train', image_loader=image_loader))
+        if name == "OTB_val":
+            datasets.append(OTB(split='val', image_loader=image_loader))
     return datasets
 
 

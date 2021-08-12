@@ -13,8 +13,8 @@ from lib.train.data import jpeg4py_loader
 from lib.train.admin import env_settings
 
 
-class TNL2K(BaseVideoDataset):
-    """ TNL2K dataset.
+class OTB(BaseVideoDataset):
+    """ OTB dataset.
     """
 
     def __init__(self, root=None, image_loader=jpeg4py_loader, vid_ids=None, split=None, data_fraction=None):
@@ -30,15 +30,12 @@ class TNL2K(BaseVideoDataset):
             data_fraction - Fraction of dataset to be used. The complete dataset is used by default
         """
         root = env_settings().lasot_dir if root is None else root
-        if split == 'val':
-            root = '/mnt/data1/tzh/data/TNL2K_test_subset/'
-        else:
-            root = '/mnt/data1/tzh/data/TNL2K/'
-        super().__init__('TNL2K', root, image_loader)
+        root = '/mnt/data1/tzh/data/OTB_sentences/'
+        super().__init__('OTB', root, image_loader)
         # Keep a list of all classes
         self.class_list = [f for f in os.listdir(self.root)]
         self.class_to_id = {cls_name: cls_id for cls_id, cls_name in enumerate(self.class_list)}
-        self.embed_dc = np.load('/mnt/data1/tzh/Stark/tnl2k_roberta_embed.npy', allow_pickle=True).item()
+        self.embed_dc = np.load('/mnt/data1/tzh/Stark/otb_roberta_embed.npy', allow_pickle=True).item()
         self.sequence_list = self._build_sequence_list(vid_ids, split)
         self.cap_size = 30
         self.bert_emb_size = 768
@@ -54,9 +51,9 @@ class TNL2K(BaseVideoDataset):
                 raise ValueError('Cannot set both split_name and vid_ids.')
             ltr_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
             if split == 'train':
-                file_path = os.path.join(ltr_path, 'data_specs', 'tnl2k_train_split.txt')
+                file_path = os.path.join(ltr_path, 'data_specs', 'otb_train_split.txt')
             elif split == 'val':
-                file_path = os.path.join(ltr_path, 'data_specs', 'tnl2k_val_split.txt')
+                file_path = os.path.join(ltr_path, 'data_specs', 'otb_val_split.txt')
             else:
                 raise ValueError('Unknown split name.')
             sequence_list = pandas.read_csv(file_path, header=None, squeeze=True).values.tolist()
@@ -71,7 +68,7 @@ class TNL2K(BaseVideoDataset):
         match_dc = {}
         for seq_id, seq_name in enumerate(self.sequence_list):
             seq_path = self._get_sequence_path(seq_id)
-            match_dc[seq_path] = sorted(glob.glob('{}/imgs/*'.format(seq_path)))
+            match_dc[seq_path] = sorted(glob.glob('{}/img/*'.format(seq_path)))
         return match_dc
 
     def _build_class_list(self):
@@ -86,7 +83,7 @@ class TNL2K(BaseVideoDataset):
         return seq_per_class
 
     def get_name(self):
-        return 'tnl2k'
+        return 'otb'
 
     def has_class_info(self):
         return True
@@ -104,9 +101,14 @@ class TNL2K(BaseVideoDataset):
         return self.seq_per_class[class_name]
 
     def _read_bb_anno(self, seq_path):
-        bb_anno_file = os.path.join(seq_path, "groundtruth.txt")
-        gt = pandas.read_csv(bb_anno_file, delimiter=',', header=None, dtype=np.float32, na_filter=False,
-                             low_memory=False).values
+        bb_anno_file = os.path.join(seq_path, "groundtruth_rect.txt")
+        gt = []
+        for line in open(bb_anno_file, 'r').readlines():
+            line = line.replace('\n', '')
+            for sp in ['\t', ',', ' ']:
+                if sp in line:
+                    gt.append([int(k) for k in line.split(sp)])
+                    continue
         return torch.tensor(gt)
 
     def _get_sequence_path(self, seq_id):

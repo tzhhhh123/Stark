@@ -66,7 +66,7 @@ class LaSOTDataset(BaseDataset):
         masks = np.ones(cap_size)
 
         masks[:tokens_len] = 0
-        hidden[:tokens_len] = caption['last_hidden_state'][:tokens_len]
+        hidden[:tokens_len] = caption['last_hidden_state'][0, :tokens_len]
 
         caption['last_hidden_state'] = hidden
         caption['masks'] = masks
