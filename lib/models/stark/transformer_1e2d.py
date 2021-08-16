@@ -33,8 +33,8 @@ def check_valid(tensor, type_name):
 
 class Transformer(nn.Module):
 
-    def __init__(self, d_model=512, nhead=8, num_encoder_layers=6, num_obj_query=1,
-                 num_decoder_layers=6, dim_feedforward=2048, dropout=0.1,
+    def __init__(self, d_model=512, nhead=8, num_encoder_layers=6, num_obj_query=1, num_words_layers=2,
+                 token_size=30, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1, caption=False,
                  activation="relu", normalize_before=False,
                  return_intermediate_dec=False, divide_norm=False):
         super().__init__()
@@ -60,25 +60,37 @@ class Transformer(nn.Module):
 
         self.d_model = d_model
         self.nhead = nhead
+        self.num_obj_query = num_obj_query
         self.d_feed = dim_feedforward
         # 2021.1.7 Try dividing norm to avoid NAN
         self.divide_norm = divide_norm
         self.scale_factor = float(d_model // nhead) ** 0.5
 
-        # position_embeddings for caption
-        self.cap_size = 30
-        self.type_size = 2
-        self.position_embeddings = nn.Embedding(
-            self.cap_size, d_model
-        )
-        # token_type_embeddings for img and caption
-        self.token_type_embeddings = nn.Embedding(
-            self.type_size, d_model
-        )
-        self.bert_fc = nn.Linear(768, d_model)
+        self.caption = caption
+        if caption:
+            self.num_words_layers = num_words_layers
+            # position_embeddings for caption
+            self.cap_size = token_size
+            self.type_size = 2
+            self.position_embeddings = nn.Embedding(
+                self.cap_size, d_model
+            )
+            # token_type_embeddings for img and caption
+            self.token_type_embeddings = nn.Embedding(
+                self.type_size, d_model
+            )
 
-        # split the text query into N
-        self.soft_fc = nn.Linear(d_model, num_obj_query)
+            self.bert_fc = nn.Linear(768, d_model)
+            # split the text query into N
+            if num_obj_query > 1:
+                self.soft_fc = nn.Linear(d_model, num_obj_query)
+
+            ###words encoder
+            if num_words_layers > 0:
+                words_encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout, activation,
+                                                              normalize_before, divide_norm=divide_norm)
+
+                self.words_encoder = TransformerEncoder(words_encoder_layer, num_words_layers, encoder_norm)
 
     def _reset_parameters(self):
         for p in self.parameters():
@@ -108,39 +120,54 @@ class Transformer(nn.Module):
         assert mode in ["all", "encoder"]
         bs = feat.size(1)
         Nq = query_embed.size(0)
-        if caption is not None:
+        if self.caption is True:
             words_emd, words_mask, words_pool = caption
             img_len = feat.shape[0]
             words_len = words_emd.shape[0]
+
+            words_mask = words_mask.to(mask)  ##(bs,L)
+            mask = torch.cat((mask, words_mask), dim=1)  ##(bs,LL)
+
             ## make segment_embedding for both img and words
-            segment_ids = torch.tensor([1] * words_len + [0] * img_len).to(feat.device)  ###(LL = words_len + img_len)
+
+            segment_ids = torch.tensor([0] * img_len + [1] * words_len).to(feat.device)  ###(LL = words_len + img_len)
             segment_emd = self.token_type_embeddings(segment_ids).unsqueeze(1).repeat(1, bs, 1)  ##(LL, bs, C)
-            mask = torch.cat((words_mask.to(mask), mask), dim=1)  ##(bs,L)
 
             ## make extra position_embeding for words
             position_ids = torch.arange(
                 words_len, dtype=torch.long, device=feat.device
             )
-            bert_pos = self.position_embeddings(position_ids).unsqueeze(1).repeat(1, bs, 1)  ###(L,bs,C)
-            pos_embed = torch.cat((bert_pos, pos_embed), dim=0)
+            ####to_fix
+            bert_pos = self.position_embeddings(position_ids).unsqueeze(1).repeat(1, bs, 1)
+            pos_embed = torch.cat((pos_embed, bert_pos), dim=0)
 
             ## all then add to the emd
-            pos_embed = pos_embed + segment_emd
+            pos_embed = pos_embed + segment_emd  ###(LL,bs,C)
 
             ##make words_feat
-            words_feat = self.bert_fc(words_emd)  ##(30,bs,C)
-            feat = torch.cat((words_feat, feat), dim=0)  ##(30+64+400,bs,C)
+            words_feat = self.bert_fc(words_emd)
+            if self.num_words_layers > 0:
+                words_feat = self.words_encoder(words_feat, src_key_padding_mask=words_mask, pos=bert_pos)
+
+            feat = torch.cat((feat, words_feat), dim=0)  ##(64+400+30,bs,C)
 
             # import ipdb
             # ipdb.set_trace()
-            soft_logit = self.soft_fc(words_feat).permute(1, 2, 0) * \
-                         (1 - words_mask).float().unsqueeze(1).repeat(1, Nq, 1)  ###(bs,N,30)
+            if self.num_obj_query > 1:
+                soft_logit = self.soft_fc(words_feat).permute(1, 2, 0) * \
+                             (1 - words_mask).float().unsqueeze(1).repeat(1, Nq, 1)  ###(bs,N,30)
 
-            soft = torch.softmax(soft_logit, dim=2)
-            words_pool = torch.matmul(soft, words_feat.permute(1, 0, 2)).transpose(
-                0, 1)  ##(B,N,30) x (B,30,C) --> (B,N,C)  -->(N,B,C)
-            # import ipdb
-            # ipdb.set_trace()
+                soft = torch.softmax(soft_logit, dim=2)
+                words_pool = torch.matmul(soft, words_feat.permute(1, 0, 2)).transpose(
+                    0, 1)  ##(B,N,30) x (B,30,C) --> (B,N,C)  -->(N,B,C)
+            else:
+                words_pool = self.bert_fc(words_pool)
+
+            ###only use temp
+            if self.num_words_layers == -1:
+                feat = feat[64:]
+                mask = mask[:, 64:]
+                pos_embed = pos_embed[64:]
 
         if self.encoder is None:
             memory = feat
@@ -153,7 +180,7 @@ class Transformer(nn.Module):
             if len(query_embed.size()) == 2:
                 query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)  # (N,C) --> (N,1,C) --> (N,B,C)
 
-            if caption is not None:
+            if caption is True:
                 query_embed = query_embed + words_pool  ###only add
 
             if self.decoder is not None:
@@ -406,10 +433,13 @@ def build_transformer(cfg):
         d_model=cfg.MODEL.HIDDEN_DIM,
         dropout=cfg.MODEL.TRANSFORMER.DROPOUT,
         nhead=cfg.MODEL.TRANSFORMER.NHEADS,
+        token_size=cfg.MODEL.TOKEN_SIZE,
         dim_feedforward=cfg.MODEL.TRANSFORMER.DIM_FEEDFORWARD,
         num_encoder_layers=cfg.MODEL.TRANSFORMER.ENC_LAYERS,
         num_decoder_layers=cfg.MODEL.TRANSFORMER.DEC_LAYERS,
+        num_words_layers=cfg.MODEL.TRANSFORMER.WORDS_LAYERS,
         num_obj_query=cfg.MODEL.NUM_OBJECT_QUERIES,
+        caption=cfg.TRAIN.CAPTION,
         normalize_before=cfg.MODEL.TRANSFORMER.PRE_NORM,
         return_intermediate_dec=False,  # we use false to avoid DDP error,
         divide_norm=cfg.MODEL.TRANSFORMER.DIVIDE_NORM,
