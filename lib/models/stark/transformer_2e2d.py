@@ -192,12 +192,7 @@ class Transformer(nn.Module):
             hs = query_embed.unsqueeze(0)
 
         if caption:
-            # import ipdb
-            # ipdb.set_trace()
-            hs = torch.cat((hs, s_hs), dim=-1)
-            memory = torch.cat((memory, s_memory), dim=-1)
-
-            return hs.transpose(1, 2), memory  # (1, B, N, C)
+            return hs.transpose(1, 2), memory, s_hs.transpose(1, 2), s_memory,  # (1, B, N, C)
 
         if return_encoder_output:
             return hs.transpose(1, 2), memory  # (1, B, N, C)

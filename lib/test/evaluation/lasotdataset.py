@@ -358,4 +358,4 @@ class LaSOTDataset(BaseDataset):
                          'volleyball-13',
                          'volleyball-18',
                          'volleyball-19']
-        return sequence_list[:140]
+        return sequence_list

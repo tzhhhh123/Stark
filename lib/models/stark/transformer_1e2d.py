@@ -92,6 +92,7 @@ class Transformer(nn.Module):
 
                 self.words_encoder = TransformerEncoder(words_encoder_layer, num_words_layers, encoder_norm)
 
+
     def _reset_parameters(self):
         for p in self.parameters():
             if p.dim() > 1:

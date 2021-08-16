@@ -15,8 +15,8 @@ from lib.utils.box_ops import box_xyxy_to_cxcywh
 class STARKS(nn.Module):
     """ This is the base class for Transformer Tracking """
 
-    def __init__(self, backbone, transformer, box_head, num_queries,
-                 aux_loss=False, head_type="CORNER", token_size=0):
+    def __init__(self, backbone, transformer, box_head,
+                 cfg):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -28,14 +28,15 @@ class STARKS(nn.Module):
         self.backbone = backbone
         self.transformer = transformer
         self.box_head = box_head
-        self.num_queries = num_queries
-        hidden_dim = transformer.d_model
-        self.query_embed = nn.Embedding(num_queries, hidden_dim)  # object queries
+        self.aux_loss = cfg.TRAIN.DEEP_SUPERVISION
+        self.head_type = cfg.MODEL.HEAD_TYPE
+        self.token_size = cfg.MODEL.TOKEN_SIZE
+        self.num_queries = cfg.MODEL.NUM_OBJECT_QUERIES
+        hidden_dim = cfg.MODEL.HIDDEN_DIM
+        self.query_embed = nn.Embedding(self.num_queries, hidden_dim)  # object queries
         self.bottleneck = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)  # the bottleneck layer
-        self.aux_loss = aux_loss
-        self.head_type = head_type
-        self.token_size = token_size
-        if head_type == "CORNER":
+
+        if self.head_type == "CORNER":
             self.feat_sz_s = int(box_head.feat_sz)
             self.feat_len_s = int(box_head.feat_sz ** 2)
 
@@ -65,8 +66,10 @@ class STARKS(nn.Module):
         if self.aux_loss:
             raise ValueError("Deep supervision is not supported.")
         # Forward the transformer encoder and decoder
-        output_embed, enc_mem = self.transformer(seq_dict["feat"], seq_dict["mask"], self.query_embed.weight,
-                                                 seq_dict["pos"], return_encoder_output=True, caption=caption)
+        output_embed, enc_mem = self.transformer(seq_dict["feat"], seq_dict["mask"],
+                                                 self.query_embed.weight,
+                                                 seq_dict["pos"], return_encoder_output=True,
+                                                 caption=caption)
         # Forward the corner head
         out, outputs_coord = self.forward_box_head(output_embed, enc_mem)
         return out, outputs_coord, output_embed
@@ -134,10 +137,7 @@ def build_starks(cfg):
         backbone,
         transformer,
         box_head,
-        num_queries=cfg.MODEL.NUM_OBJECT_QUERIES,
-        aux_loss=cfg.TRAIN.DEEP_SUPERVISION,
-        head_type=cfg.MODEL.HEAD_TYPE,
-        token_size=cfg.MODEL.TOKEN_SIZE,
+        cfg=cfg,
     )
 
     return model
