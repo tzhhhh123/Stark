@@ -67,10 +67,10 @@ class STARK_S(BaseTracker):
             x_dict = self.network.forward_backbone(search)
             # merge the template and the search
             feat_dict_list = [self.z_dict1, x_dict]
-            seq_dict = merge_template_search(feat_dict_list)
+            # seq_dict = merge_template_search(feat_dict_list)
             # run the transformer
             ###to fix seq_dict=seq_dict
-            out_dict, _, _ = self.network.forward_transformer(seq_dict=seq_dict, run_box_head=True,
+            out_dict, _, _ = self.network.forward_transformer(seq_dict=feat_dict_list, run_box_head=True,
                                                               caption=self.caption)
 
         pred_boxes = out_dict['pred_boxes'].view(-1, 4)
@@ -78,8 +78,17 @@ class STARK_S(BaseTracker):
         pred_box = (pred_boxes.mean(dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
         # get the final box result
         self.state = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
+        pred = {"target_bbox": self.state}
+        if 'nlp_pred_boxes' in out_dict:
+            nlp_pred_boxes = out_dict['nlp_pred_boxes'].view(-1, 4)
+            # Baseline: Take the mean of all pred boxes as the final result
+            nlp_pred_box = (nlp_pred_boxes.mean(
+                dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
+            # get the final box result
+            pred['nlp_bbox'] = clip_box(self.map_box_back(nlp_pred_box, resize_factor), H, W, margin=10)
 
         # for debug
+
         if self.debug:
             x1, y1, w, h = self.state
             image_BGR = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
@@ -93,7 +102,7 @@ class STARK_S(BaseTracker):
             return {"target_bbox": self.state,
                     "all_boxes": all_boxes_save}
         else:
-            return {"target_bbox": self.state}
+            return pred
 
     def map_box_back(self, pred_box: list, resize_factor: float):
         cx_prev, cy_prev = self.state[0] + 0.5 * self.state[2], self.state[1] + 0.5 * self.state[3]

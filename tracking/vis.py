@@ -27,7 +27,8 @@ def frame2video(frames, save_path, dec=1):
 
 def main():
     parser = argparse.ArgumentParser(description='visualization.')
-    data_dir = '/mnt/data1/tzh/data/LaSOT/LaSOTBenchmark'
+    # data_dir = '/mnt/data1/tzh/data/LaSOT/LaSOTBenchmark'
+    data_dir = '/mnt/data1/tzh/data/OTB_sentences'
     root_dir = '/mnt/data1/tzh/Stark/test/tracking_results/stark_s'
     save_root = '/mnt/data1/tzh/Stark/vis'
     parser.add_argument('--name', type=str, default='baseline_lasot',
@@ -35,7 +36,8 @@ def main():
     args = parser.parse_args()
     root = os.path.join(root_dir, args.name)
     save_dir = os.path.join(save_root, args.name)
-    dataset = get_dataset('lasot')
+    # dataset = get_dataset('lasot')
+    dataset = get_dataset('otb')
     for seq in tqdm(dataset):
         name = seq.name
         txt_path = os.path.join(root, '{}.txt'.format(name))
@@ -45,10 +47,12 @@ def main():
             continue
         out_res = np.loadtxt(open(txt_path, 'r'), dtype=float).tolist()
         # out_score = np.loadtxt(open(txt_path, 'r'), dtype=float).tolist()
-        caption = list(open(os.path.join(data_dir, name.split('-')[0], name, 'nlp.txt')).readlines())[0]
+        caption = list(open(os.path.join(data_dir, name, 'language.txt')).readlines())[0]
         gt = seq.ground_truth_rect
         v_images = []
         for i, frame_path in enumerate(seq.frames):
+            if i >= len(gt):
+                continue
             image = cv.imread(frame_path)
             out_box = out_res[i]
             _gt = gt[i]

@@ -1,8 +1,8 @@
 from . import BaseActor
 from lib.utils.misc import NestedTensor
 from lib.utils.box_ops import box_cxcywh_to_xyxy, box_xywh_to_xyxy
+from lib.utils.box_ops import box_iou
 import torch
-from lib.utils.merge import merge_template_search
 
 
 class STARKSActor(BaseActor):
@@ -33,6 +33,17 @@ class STARKSActor(BaseActor):
         # compute losses
         loss, status = self.compute_losses(out_dict, gt_bboxes[0])
 
+        if 'nlp_pred_boxes' in out_dict:
+            nlp_dict = {
+                'pred_boxes': out_dict['nlp_pred_boxes']
+            }
+            nlp_loss, nlp_status = self.compute_losses(nlp_dict, gt_bboxes[0])
+
+            ###to do add loss_weight
+            loss = loss + nlp_loss
+            status["L/Loss"] = nlp_status["B/Loss"]
+            status["L/LIoU"] = nlp_status["B/IoU"]
+
         return loss, status
 
     def forward_pass(self, data, run_box_head, run_cls_head):
@@ -50,10 +61,10 @@ class STARKSActor(BaseActor):
         feat_dict_list.append(self.net(img=NestedTensor(search_img, search_att), mode='backbone'))
 
         # run the transformer and compute losses
-        seq_dict = merge_template_search(feat_dict_list)
+
         caption = (data['words_hidden'], data['words_masks'].transpose(0, 1),
                    data['words_pool']) if self.settings.caption else None
-        out_dict, _, _ = self.net(seq_dict=seq_dict, mode="transformer", run_box_head=run_box_head,
+        out_dict, _, _ = self.net(seq_dict=feat_dict_list, mode="transformer", run_box_head=run_box_head,
                                   run_cls_head=run_cls_head, caption=caption)  ###tzh add cap
         # out_dict: (B, N, C), outputs_coord: (1, B, N, C), target_query: (1, B, N, C)
         return out_dict
@@ -76,13 +87,14 @@ class STARKSActor(BaseActor):
         l1_loss = self.objective['l1'](pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
         # weighted sum
         loss = self.loss_weight['giou'] * giou_loss + self.loss_weight['l1'] * l1_loss
+
         if return_status:
             # status for log
             mean_iou = iou.detach().mean()
-            status = {"Loss/total": loss.item(),
-                      "Loss/giou": giou_loss.item(),
-                      "Loss/l1": l1_loss.item(),
-                      "IoU": mean_iou.item()}
+            status = {"B/Loss": loss.item(),
+                      "B/GIoU": giou_loss.item(),
+                      "B/L1": l1_loss.item(),
+                      "B/IoU": mean_iou.item()}
             return loss, status
         else:
             return loss

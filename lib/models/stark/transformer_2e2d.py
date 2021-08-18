@@ -42,15 +42,19 @@ class Transformer(nn.Module):
         encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
                                                 dropout, activation, normalize_before, divide_norm=divide_norm)
         encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
-
-        self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
+        if num_encoder_layers == 0:
+            self.encoder = None
+        else:
+            self.encoder = TransformerEncoder(encoder_layer, num_encoder_layers, encoder_norm)
 
         decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
                                                 dropout, activation, normalize_before, divide_norm=divide_norm)
         decoder_norm = nn.LayerNorm(d_model)
-
-        self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm,
-                                          return_intermediate=return_intermediate_dec)
+        if num_decoder_layers == 0:
+            self.decoder = None
+        else:
+            self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm,
+                                              return_intermediate=return_intermediate_dec)
 
         self.d_model = d_model
         self.nhead = nhead
@@ -61,31 +65,16 @@ class Transformer(nn.Module):
         self.scale_factor = float(d_model // nhead) ** 0.5
 
         self.caption = caption
-
         if caption:
-            nlp_encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward,
-                                                        dropout, activation, normalize_before, divide_norm=divide_norm)
-            nlp_encoder_norm = nn.LayerNorm(d_model) if normalize_before else None
-
-            self.nlp_encoder = TransformerEncoder(nlp_encoder_layer, num_encoder_layers, nlp_encoder_norm)
-
-            nlp_decoder_layer = TransformerDecoderLayer(d_model, nhead, dim_feedforward,
-                                                        dropout, activation, normalize_before, divide_norm=divide_norm)
-            nlp_decoder_norm = nn.LayerNorm(d_model)
-
-            self.nlp_decoder = TransformerDecoder(nlp_decoder_layer, num_decoder_layers, nlp_decoder_norm,
-                                                  return_intermediate=return_intermediate_dec)
-
             self.num_words_layers = num_words_layers
             # position_embeddings for caption
             self.cap_size = token_size
+            self.type_size = 2
             self.position_embeddings = nn.Embedding(
                 self.cap_size, d_model
             )
 
             self.bert_fc = nn.Linear(768, d_model)
-            # split the text query into N
-
             ###words encoder
             if num_words_layers > 0:
                 words_encoder_layer = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout, activation,
@@ -93,7 +82,7 @@ class Transformer(nn.Module):
 
                 self.words_encoder = TransformerEncoder(words_encoder_layer, num_words_layers, encoder_norm)
 
-        self._reset_parameters()
+            self._reset_parameters()
 
     def _reset_parameters(self):
         for p in self.parameters():
@@ -120,45 +109,34 @@ class Transformer(nn.Module):
 
         :return:
         """
-        assert mode in ["all"]
-
+        assert mode in ["all", "encoder"]
         bs = feat.size(1)
-        Nq = query_embed.size(0)
 
-        assert len(query_embed.size()) in [2, 3]  ###[2,3]
+        assert len(query_embed.size()) in [2]  ###[2,3]
         if len(query_embed.size()) == 2:
             query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)  # (N,C) --> (N,1,C) --> (N,B,C)
 
-        if self.caption:
-            s_feat = feat[64:].clone()
-            s_mask = mask[:, 64:].clone()
-            s_pos_embed = pos_embed[64:].clone()
-
+        if self.caption is True:
             words_emd, words_mask, words_pool = caption
-            img_len = s_feat.shape[0]
             words_len = words_emd.shape[0]
 
-            words_mask = words_mask.to(s_mask)  ##(bs,L)
-            s_mask = torch.cat((s_mask, words_mask), dim=1)  ##(bs,LL)
+            words_mask = words_mask.to(mask)  ##(bs,L)
+            mask = torch.cat((words_mask, mask), dim=1)  ##(bs,LL)
 
-            ## make segment_embedding for both img and words
             ## make extra position_embeding for words
             position_ids = torch.arange(
-                words_len, dtype=torch.long, device=s_feat.device
+                words_len, dtype=torch.long, device=feat.device
             )
             ####to_fix
             bert_pos = self.position_embeddings(position_ids).unsqueeze(1).repeat(1, bs, 1)
-            s_pos_embed = torch.cat((s_pos_embed, bert_pos), dim=0)
-
-            ## all then add to the emd
-            s_pos_embed = s_pos_embed  ###(LL,bs,C)
+            pos_embed = torch.cat((bert_pos, pos_embed), dim=0)
 
             ##make words_feat
-            words_feat = self.bert_fc(words_emd)  ####(L,bs,C)
+            words_feat = self.bert_fc(words_emd)
             if self.num_words_layers > 0:
                 words_feat = self.words_encoder(words_feat, src_key_padding_mask=words_mask, pos=bert_pos)
 
-            s_feat = torch.cat((s_feat, words_feat), dim=0)  ##(64+400+30,bs,C)
+            feat = torch.cat((words_feat, feat), dim=0)  ##(64+400+30,bs,C)
 
             # import ipdb
             # ipdb.set_trace()
@@ -172,32 +150,27 @@ class Transformer(nn.Module):
             else:
                 words_pool = self.bert_fc(words_pool)
 
-            s_query_embed = query_embed.clone() + words_pool  ###only add
-
-            s_memory = self.encoder(s_feat, src_key_padding_mask=s_mask, pos=s_pos_embed)
-            ##(B, LL, C)
-
-            s_tgt = torch.zeros_like(s_query_embed)
-            s_hs = self.decoder(s_tgt, s_memory, memory_key_padding_mask=s_mask,
-                                pos=s_pos_embed, query_pos=s_query_embed)
-
-        memory = self.encoder(feat, src_key_padding_mask=mask, pos=pos_embed)
-        ##(B, LL, C)
-
-        if self.decoder is not None:
-            tgt = torch.zeros_like(query_embed)
-            hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
-                              pos=pos_embed, query_pos=query_embed)
+        if self.encoder is None:
+            memory = feat
         else:
-            hs = query_embed.unsqueeze(0)
+            memory = self.encoder(feat, src_key_padding_mask=mask, pos=pos_embed)
 
-        if caption:
-            return hs.transpose(1, 2), memory, s_hs.transpose(1, 2), s_memory,  # (1, B, N, C)
+        if mode == "encoder":
+            return memory
+        elif mode == "all":
+            if caption is True:
+                query_embed = query_embed + words_pool  ###only add
 
-        if return_encoder_output:
-            return hs.transpose(1, 2), memory  # (1, B, N, C)
-        else:
-            return hs.transpose(1, 2)  # (1, B, N, C)
+            if self.decoder is not None:
+                tgt = torch.zeros_like(query_embed)
+                hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
+                                  pos=pos_embed, query_pos=query_embed)
+            else:
+                hs = query_embed.unsqueeze(0)
+            if return_encoder_output:
+                return hs.transpose(1, 2), memory  # (1, B, N, C)
+            else:
+                return hs.transpose(1, 2)  # (1, B, N, C)
 
 
 class TransformerEncoder(nn.Module):
@@ -433,7 +406,7 @@ def _get_clones(module, N):
     return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
 
 
-def build_transformer(cfg):
+def build_transformer(cfg, caption):
     return Transformer(
         d_model=cfg.MODEL.HIDDEN_DIM,
         dropout=cfg.MODEL.TRANSFORMER.DROPOUT,
@@ -444,7 +417,7 @@ def build_transformer(cfg):
         num_decoder_layers=cfg.MODEL.TRANSFORMER.DEC_LAYERS,
         num_words_layers=cfg.MODEL.TRANSFORMER.WORDS_LAYERS,
         num_obj_query=cfg.MODEL.NUM_OBJECT_QUERIES,
-        caption=cfg.TRAIN.CAPTION,
+        caption=caption,
         normalize_before=cfg.MODEL.TRANSFORMER.PRE_NORM,
         return_intermediate_dec=False,  # we use false to avoid DDP error,
         divide_norm=cfg.MODEL.TRANSFORMER.DIVIDE_NORM,

@@ -213,8 +213,8 @@ class BaseTrainer:
                 net.load_state_dict(model2_dict)
                 # net.load_state_dict(checkpoint_dict[key])
             elif key == 'optimizer':
-                self.optimizer.load_state_dict(checkpoint_dict[key])
-                # continue
+                # self.optimizer.load_state_dict(checkpoint_dict[key])
+                continue
 
             # if key == 'net':
             #     net.load_state_dict(checkpoint_dict[key])

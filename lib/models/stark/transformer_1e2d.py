@@ -92,7 +92,6 @@ class Transformer(nn.Module):
 
                 self.words_encoder = TransformerEncoder(words_encoder_layer, num_words_layers, encoder_norm)
 
-
     def _reset_parameters(self):
         for p in self.parameters():
             if p.dim() > 1:
@@ -155,10 +154,10 @@ class Transformer(nn.Module):
             # import ipdb
             # ipdb.set_trace()
             if self.num_obj_query > 1:
-                soft_logit = self.soft_fc(words_feat).permute(1, 2, 0) * \
-                             (1 - words_mask).float().unsqueeze(1).repeat(1, Nq, 1)  ###(bs,N,30)
+                soft_logit = torch.matmul(words_feat.permute(1, 0, 2), query_embed.permute(1, 2, 0))
 
                 soft = torch.softmax(soft_logit, dim=2)
+
                 words_pool = torch.matmul(soft, words_feat.permute(1, 0, 2)).transpose(
                     0, 1)  ##(B,N,30) x (B,30,C) --> (B,N,C)  -->(N,B,C)
             else:

@@ -115,11 +115,11 @@ class LTRTrainer(BaseTrainer):
         self.prev_time = current_time
         if i % self.settings.print_interval == 0 or i == loader.__len__():
             print_str = '[%s: %d, %d / %d] ' % (loader.name, self.epoch, i, loader.__len__())
-            print_str += 'FPS: %.1f (%.1f)  ,  ' % (average_fps, batch_fps)
+            print_str += 'FPS: %.1f (%.1f),  ' % (average_fps, batch_fps)
             for name, val in self.stats[loader.name].items():
                 if (self.settings.print_stats is None or name in self.settings.print_stats):
                     if hasattr(val, 'avg'):
-                        print_str += '%s: %.5f  ,  ' % (name, val.avg)
+                        print_str += '%s: %.4f,  ' % (name, val.avg)
                     # else:
                     #     print_str += '%s: %r  ,  ' % (name, val)
 
