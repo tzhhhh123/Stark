@@ -120,8 +120,9 @@ class Tracker:
         # object in frame i
 
         # # ipdb.set_trace()
-        # label = json.load(open('/mnt/data1/tzh/Stark/ocr_res/{}.json'.format(seq.name)))
         output = {'target_bbox': [],
+                  'nlp_bbox': [],
+                  'pred_logits': [],
                   'time': [],
                   'conf_score': []}
         if tracker.params.save_all_boxes:
@@ -139,13 +140,10 @@ class Tracker:
         image = self._read_image(seq.frames[0])
 
         start_time = time.time()
-        # import ipdb
-        # pdb.set_trace()
+
         print('use_ar', self.use_ar)
         if self.use_ar:
             img_RGB = image
-            # mask = make_full_size(init_info['init_bbox'], (image.shape[1], image.shape[0]))
-            # region = rect_from_mask(mask)
             region = init_info['init_bbox']
             gt_bbox_np = np.array(region).astype(np.float32)
             out = tracker.initialize(img_RGB, init_info)
@@ -166,20 +164,6 @@ class Tracker:
 
         _store_outputs(out, init_default)
 
-        def frame2video(frames, save_path, dec=1):
-            writer = None
-            save_path = save_path.replace('.mkv', '.mp4')
-            save_path = save_path.replace('.webm', '.mp4')
-            for img in frames:
-                if writer is None:
-                    fourcc = cv.VideoWriter_fourcc(*"mp4v")
-                    writer = cv.VideoWriter(save_path, fourcc, 25 // dec,
-                                            (img.shape[1], img.shape[0]))
-                if writer is not None:
-                    writer.write(img)
-
-        v_images = []
-        vis_video = False
         for frame_num, frame_path in enumerate(seq.frames[1:], start=1):
             image = self._read_image(frame_path)
             # off_x = float(label[os.path.basename(seq.frames[frame_num])].split(' ')[0]) - float(
@@ -204,30 +188,13 @@ class Tracker:
                 pred_mask = self.alpha.get_mask(image, np.array(pred_bbox), vis=False)
                 final_mask = (pred_mask > self.THRES).astype(np.uint8)
                 out['target_bbox'] = mask2box(final_mask)
-            ##vis image
-            if vis_video:
-                out_box = out['target_bbox']
-                _gt = seq.ground_truth_rect[frame_num]
 
-                cv.rectangle(image, (int(_gt[0]), int(_gt[1])), (int(_gt[0] + _gt[2]), int(_gt[1] + _gt[3])),
-                             (0, 255, 0))
-                cv.putText(image, str(out['conf_score'])[:4], (int(out_box[0]), int(out_box[1])), 1, 2,
-                           (0, 0, 255), 2)
-
-                cv.rectangle(image, (int(out_box[0]), int(out_box[1])),
-                             (int(out_box[0] + out_box[2]), int(out_box[1] + out_box[3])),
-                             (0, 255, 255))
-                v_images.append(image)
             prev_output = OrderedDict(out)
             _store_outputs(out, {'time': time.time() - start_time})
 
         for key in ['target_bbox', 'all_boxes', 'all_scores']:
             if key in output and len(output[key]) <= 1:
                 output.pop(key)
-        if vis_video:
-            if os.path.exists('/mnt/data1/tzh/Stark/vis') is False:
-                os.makedirs('/mnt/data1/tzh/Stark/vis/')
-            frame2video(v_images, '/mnt/data1/tzh/Stark/vis/{}.mp4'.format(seq.name))
         return output
 
     def run_video(self, videofilepath, optional_box=None, debug=None, visdom_info=None, save_results=False):

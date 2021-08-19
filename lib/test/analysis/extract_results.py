@@ -21,7 +21,7 @@ def calc_err_center(pred_bb, anno_bb, normalized=False):
         pred_center = pred_center / anno_bb[:, 2:]
         anno_center = anno_center / anno_bb[:, 2:]
 
-    err_center = ((pred_center - anno_center)**2).sum(1).sqrt()
+    err_center = ((pred_center - anno_center) ** 2).sum(1).sqrt()
     return err_center
 
 
@@ -53,7 +53,7 @@ def calc_seq_err_robust(pred_bb, anno_bb, dataset, target_visible=None):
     if (pred_bb[:, 2:] == 0.0).any():
         for i in range(1, pred_bb.shape[0]):
             if (pred_bb[i, 2:] == 0.0).any() and not torch.isnan(anno_bb[i, :]).any():
-                pred_bb[i, :] = pred_bb[i-1, :]
+                pred_bb[i, :] = pred_bb[i - 1, :]
 
     if pred_bb.shape[0] != anno_bb.shape[0]:
         if dataset == 'lasot':
@@ -100,7 +100,7 @@ def calc_seq_err_robust(pred_bb, anno_bb, dataset, target_visible=None):
 
 
 def extract_results(trackers, dataset, report_name, skip_missing_seq=False, plot_bin_gap=0.05,
-                    exclude_invalid_frames=False):
+                    exclude_invalid_frames=False, use_nlp=False):
     settings = env_settings()
     eps = 1e-16
 
@@ -140,7 +140,10 @@ def extract_results(trackers, dataset, report_name, skip_missing_seq=False, plot
                     break
                 else:
                     raise Exception('Result not found. {}'.format(results_path))
-
+            if use_nlp:
+                ###nlp miss the first bbox
+                nlp_results_path = '{}_nlp.txt'.format(base_results_path)
+                pred_bb[1:] = torch.tensor(load_text(str(nlp_results_path), delimiter=('\t', ','), dtype=np.float64))
             # Calculate measures
             # print(sum(target_visible))
             # import pdb
@@ -159,11 +162,18 @@ def extract_results(trackers, dataset, report_name, skip_missing_seq=False, plot
             if seq_length <= 0:
                 raise Exception('Seq length zero')
 
-            ave_success_rate_plot_overlap[seq_id, trk_id, :] = (err_overlap.view(-1, 1) > threshold_set_overlap.view(1, -1)).sum(0).float() / seq_length
-            ave_success_rate_plot_center[seq_id, trk_id, :] = (err_center.view(-1, 1) <= threshold_set_center.view(1, -1)).sum(0).float() / seq_length
-            ave_success_rate_plot_center_norm[seq_id, trk_id, :] = (err_center_normalized.view(-1, 1) <= threshold_set_center_norm.view(1, -1)).sum(0).float() / seq_length
+            ave_success_rate_plot_overlap[seq_id, trk_id, :] = (err_overlap.view(-1, 1) > threshold_set_overlap.view(1,
+                                                                                                                     -1)).sum(
+                0).float() / seq_length
+            ave_success_rate_plot_center[seq_id, trk_id, :] = (err_center.view(-1, 1) <= threshold_set_center.view(1,
+                                                                                                                   -1)).sum(
+                0).float() / seq_length
+            ave_success_rate_plot_center_norm[seq_id, trk_id, :] = (err_center_normalized.view(-1,
+                                                                                               1) <= threshold_set_center_norm.view(
+                1, -1)).sum(0).float() / seq_length
 
-    print('\n\nComputed results over {} / {} sequences'.format(valid_sequence.long().sum().item(), valid_sequence.shape[0]))
+    print('\n\nComputed results over {} / {} sequences'.format(valid_sequence.long().sum().item(),
+                                                               valid_sequence.shape[0]))
 
     # Prepare dictionary for saving data
     seq_names = [s.name for s in dataset]

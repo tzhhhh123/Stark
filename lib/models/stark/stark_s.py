@@ -16,7 +16,7 @@ from lib.utils.merge import merge_template_search
 class STARKS(nn.Module):
     """ This is the base class for Transformer Tracking """
 
-    def __init__(self, backbone, transformer, box_head, cfg, nlp_transformer=None, nlp_box_head=None):
+    def __init__(self, backbone, transformer, box_head, cls_head, cfg, nlp_transformer=None, nlp_box_head=None):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -29,7 +29,6 @@ class STARKS(nn.Module):
         self.transformer = transformer
         self.nlp_transformer = nlp_transformer
         self.box_head = box_head
-        # self.cls_head = cls_head
         self.nlp_box_head = nlp_box_head
         self.aux_loss = cfg.TRAIN.DEEP_SUPERVISION
         self.head_type = cfg.MODEL.HEAD_TYPE
@@ -43,6 +42,9 @@ class STARKS(nn.Module):
         if self.head_type == "CORNER":
             self.feat_sz_s = int(box_head.feat_sz)
             self.feat_len_s = int(box_head.feat_sz ** 2)
+        for p in self.parameters():
+            p.requires_grad = False
+        self.cls_head = cls_head
 
     def forward(self, img=None, seq_dict=None, mode="backbone", run_box_head=True, run_cls_head=False, caption=None):
 
@@ -87,8 +89,8 @@ class STARKS(nn.Module):
         out, outputs_coord = self.forward_box_head(output_embed, enc_mem, self.box_head)
 
         if self.nlp_transformer is not None:
-            # output_embed = torch.cat((output_embed, nlp_output_embed), dim=-1)
-            # out.update({'pred_logits': self.cls_head(output_embed)[-1]})
+            output_embed = torch.cat((output_embed, nlp_output_embed), dim=-1)
+            out.update({'pred_logits': self.cls_head(output_embed)[-1]})
             out['nlp_pred_boxes'] = nlp_out['pred_boxes']
 
         return out, outputs_coord, output_embed
@@ -150,7 +152,7 @@ def build_starks(cfg):
     transformer = build_transformer(cfg, caption=False)
     box_head = build_box_head(cfg)
     nlp_transformer = None
-    # cls_head = MLP(cfg.MODEL.HIDDEN_DIM * 2, cfg.MODEL.HIDDEN_DIM, 1, 3)
+    cls_head = MLP(cfg.MODEL.HIDDEN_DIM * 2, cfg.MODEL.HIDDEN_DIM, 1, 3)
     if cfg.TRAIN.CAPTION:
         nlp_transformer = build_transformer(cfg, caption=True)
         nlp_box_head = build_box_head(cfg)
@@ -158,7 +160,7 @@ def build_starks(cfg):
         backbone,
         transformer,
         box_head,
-        # cls_head,
+        cls_head,
         cfg=cfg,
         nlp_transformer=nlp_transformer,
         nlp_box_head=nlp_box_head,

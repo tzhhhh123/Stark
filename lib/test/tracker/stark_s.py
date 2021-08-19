@@ -78,6 +78,7 @@ class STARK_S(BaseTracker):
         pred_box = (pred_boxes.mean(dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
         # get the final box result
         self.state = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
+
         pred = {"target_bbox": self.state}
         if 'nlp_pred_boxes' in out_dict:
             nlp_pred_boxes = out_dict['nlp_pred_boxes'].view(-1, 4)
@@ -87,6 +88,8 @@ class STARK_S(BaseTracker):
             # get the final box result
             pred['nlp_bbox'] = clip_box(self.map_box_back(nlp_pred_box, resize_factor), H, W, margin=10)
 
+        if "pred_logits" in out_dict:
+            pred['pred_logits'] = out_dict["pred_logits"]
         # for debug
 
         if self.debug:
