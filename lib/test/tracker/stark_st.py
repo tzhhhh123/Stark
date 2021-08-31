@@ -81,13 +81,17 @@ class STARK_ST(BaseTracker):
                                                               run_cls_head=True, caption=self.caption, only='nlp')
         # import ipdb
         # ipdb.set_trace()
-        pred_boxes = out_dict['pred_boxes'].view(-1, 4)
-        # Baseline: Take the mean of all pred boxes as the final result
-        pred_box = (pred_boxes.mean(dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
-        # get the final box result
-        self.state = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
+        pred = {}
+        if 'pred_boxes' in out_dict:
+            pred_boxes = out_dict['pred_boxes'].view(-1, 4)
+            # Baseline: Take the mean of all pred boxes as the final result
+            pred_box = (pred_boxes.mean(
+                dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
+            # get the final box result
+            self.state = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
 
-        pred = {"target_bbox": self.state}
+            pred = {"target_bbox": self.state}
+
         if 'nlp_pred_boxes' in out_dict:
             nlp_pred_boxes = out_dict['nlp_pred_boxes'].view(-1, 4)
             # Baseline: Take the mean of all pred boxes as the final result

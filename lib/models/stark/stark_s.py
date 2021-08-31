@@ -82,7 +82,7 @@ class STARKS(nn.Module):
             nlp_out, nlp_outputs_coord = self.forward_box_head(nlp_output_embed, nlp_enc_mem, self.nlp_box_head)
             if only == 'nlp':
                 out = {'nlp_pred_boxes': nlp_out['pred_boxes']}
-                return out, None, None
+                return out, None, nlp_output_embed
 
         if only == 'box' or only is None:
             seq_dict = merge_template_search(seq_dict)
@@ -102,7 +102,7 @@ class STARKS(nn.Module):
         if nlp_out is not None:
             out['nlp_pred_boxes'] = nlp_out['pred_boxes']
 
-        return out, None, None
+        return out, output_embed, nlp_output_embed
 
     def forward_box_head_sk(self, hs, memory, nlp_hs, nlp_memory, box_head):
         enc_opt = memory[-self.feat_len_s:].transpose(0, 1)
