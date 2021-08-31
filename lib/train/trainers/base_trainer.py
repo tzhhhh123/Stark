@@ -191,7 +191,7 @@ class BaseTrainer:
         checkpoint_dict = torch.load(checkpoint_path)
         # print(net_type)
         # print(checkpoint_dict['net_type'])
-        assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
+        # assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
 
         if fields is None:
             fields = checkpoint_dict.keys()
@@ -213,8 +213,8 @@ class BaseTrainer:
                 net.load_state_dict(model2_dict)
                 # net.load_state_dict(checkpoint_dict[key])
             elif key == 'optimizer':
-                # self.optimizer.load_state_dict(checkpoint_dict[key])
-                continue
+                self.optimizer.load_state_dict(checkpoint_dict[key])
+                # continue
 
             # if key == 'net':
             #     net.load_state_dict(checkpoint_dict[key])
@@ -272,8 +272,8 @@ class BaseTrainer:
         print("Loading pretrained model from ", checkpoint_path)
         checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
 
-        assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
+        # assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
 
-        net.load_state_dict(checkpoint_dict["net"], strict=True)
+        net.load_state_dict(checkpoint_dict["net"], strict=False)
 
         return True

@@ -90,6 +90,7 @@ class STARK_S(BaseTracker):
 
         if "pred_logits" in out_dict:
             pred['pred_logits'] = out_dict["pred_logits"]
+            pred['nlp_pred_logits'] = out_dict["nlp_pred_logits"]
         # for debug
 
         if self.debug:

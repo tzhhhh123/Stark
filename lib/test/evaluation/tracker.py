@@ -123,6 +123,7 @@ class Tracker:
         output = {'target_bbox': [],
                   'nlp_bbox': [],
                   'pred_logits': [],
+                  'nlp_pred_logits': [],
                   'time': [],
                   'conf_score': []}
         if tracker.params.save_all_boxes:

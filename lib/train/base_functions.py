@@ -2,9 +2,10 @@ import torch
 from torch.utils.data.distributed import DistributedSampler
 # datasets related
 from lib.train.dataset import Lasot, Got10k, MSCOCOSeq, ImagenetVID, TrackingNet, AntiUAV, TNL2K, OTB
-from lib.train.dataset import Lasot_lmdb, Got10k_lmdb, MSCOCOSeq_lmdb, ImagenetVID_lmdb, TrackingNet_lmdb
+from lib.train.dataset import Lasot_lmdb, Got10k_lmdb, MSCOCOSeq_lmdb, ImagenetVID_lmdb, TrackingNet_lmdb, REFERSeq
 from lib.train.data import sampler, opencv_loader, processing, LTRLoader
 import lib.train.data.transforms as tfm
+import numpy as np
 
 
 def update_settings(settings, cfg):
@@ -24,13 +25,14 @@ def update_settings(settings, cfg):
     settings.caption = cfg.TRAIN.CAPTION
 
 
-def names2datasets(name_list: list, settings, image_loader):
+def names2datasets(name_list: list, settings, image_loader, emb_dcs=None):
     assert isinstance(name_list, list)
     datasets = []
     for name in name_list:
         # print(name)
         assert name in ["LASOT", "LASOT_val", "GOT10K_vottrain", "GOT10K_votval", "GOT10K_train_full", "COCO17", "VID",
-                        "TRACKINGNET", "AntiUAV_train", "AntiUAV_val", "TNL2K", "TNL2K_val", "OTB", "OTB_val"]
+                        "TRACKINGNET", "AntiUAV_train", "AntiUAV_val", "TNL2K", "TNL2K_val", "OTB", "OTB_val",
+                        "Refcoco", "Refcoco+", "Refcocog"]
         if name == "LASOT":
             if settings.use_lmdb:
                 print("Building lasot dataset from lmdb")
@@ -93,6 +95,13 @@ def names2datasets(name_list: list, settings, image_loader):
             datasets.append(OTB(split='train', image_loader=image_loader))
         if name == "OTB_val":
             datasets.append(OTB(split='val', image_loader=image_loader))
+        if name == "Refcoco":
+            datasets.append(REFERSeq(dataname='refcoco', split='train', image_loader=image_loader))
+        if name == "Refcoco+":
+            datasets.append(REFERSeq(dataname='refcoco+', split='train', image_loader=image_loader))
+        if name == "Refcocog":
+            datasets.append(REFERSeq(dataname='refcocog', split='train', image_loader=image_loader))
+
     return datasets
 
 
@@ -136,6 +145,7 @@ def build_dataloaders(cfg, settings):
     sampler_mode = getattr(cfg.DATA, "SAMPLER_MODE", "causal")
     train_cls = getattr(cfg.TRAIN, "TRAIN_CLS", False)
     print("sampler_mode", sampler_mode)
+
     dataset_train = sampler.TrackingSampler(
         datasets=names2datasets(cfg.DATA.TRAIN.DATASETS_NAME, settings, opencv_loader),
         p_datasets=cfg.DATA.TRAIN.DATASETS_RATIO,
@@ -147,16 +157,18 @@ def build_dataloaders(cfg, settings):
     train_sampler = DistributedSampler(dataset_train) if settings.local_rank != -1 else None
     shuffle = False if settings.local_rank != -1 else True
 
-    loader_train = LTRLoader('train', dataset_train, training=True, batch_size=cfg.TRAIN.BATCH_SIZE, shuffle=shuffle,
+    loader_train = LTRLoader('train', dataset_train, training=True, batch_size=cfg.TRAIN.BATCH_SIZE,
+                             shuffle=shuffle,
                              num_workers=cfg.TRAIN.NUM_WORKER, drop_last=True, stack_dim=1, sampler=train_sampler)
 
     # Validation samplers and loaders
-    dataset_val = sampler.TrackingSampler(datasets=names2datasets(cfg.DATA.VAL.DATASETS_NAME, settings, opencv_loader),
-                                          p_datasets=cfg.DATA.VAL.DATASETS_RATIO,
-                                          samples_per_epoch=cfg.DATA.VAL.SAMPLE_PER_EPOCH,
-                                          max_gap=cfg.DATA.MAX_SAMPLE_INTERVAL, num_search_frames=settings.num_search,
-                                          num_template_frames=settings.num_template, processing=data_processing_val,
-                                          frame_sample_mode=sampler_mode, train_cls=train_cls)
+    dataset_val = sampler.TrackingSampler(
+        datasets=names2datasets(cfg.DATA.VAL.DATASETS_NAME, settings, opencv_loader),
+        p_datasets=cfg.DATA.VAL.DATASETS_RATIO,
+        samples_per_epoch=cfg.DATA.VAL.SAMPLE_PER_EPOCH,
+        max_gap=cfg.DATA.MAX_SAMPLE_INTERVAL, num_search_frames=settings.num_search,
+        num_template_frames=settings.num_template, processing=data_processing_val,
+        frame_sample_mode=sampler_mode, train_cls=train_cls)
     val_sampler = DistributedSampler(dataset_val) if settings.local_rank != -1 else None
     loader_val = LTRLoader('val', dataset_val, training=False, batch_size=cfg.TRAIN.BATCH_SIZE,
                            num_workers=cfg.TRAIN.NUM_WORKER, drop_last=True, stack_dim=1, sampler=val_sampler,

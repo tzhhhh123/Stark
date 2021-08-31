@@ -143,7 +143,10 @@ def extract_results(trackers, dataset, report_name, skip_missing_seq=False, plot
             if use_nlp:
                 ###nlp miss the first bbox
                 nlp_results_path = '{}_nlp.txt'.format(base_results_path)
-                pred_bb[1:] = torch.tensor(load_text(str(nlp_results_path), delimiter=('\t', ','), dtype=np.float64))
+                pred_bb = torch.tensor(load_text(str(nlp_results_path), delimiter=('\t', ','), dtype=np.float64))
+                # conf_path = '{}_logit.txt'.format(base_results_path)
+                # conf = torch.tensor(np.loadtxt(open(conf_path, 'r'), dtype=float))
+                # pred_bb[1:][conf < 0.2] = nlp_pred_bb[conf < 0.2]
             # Calculate measures
             # print(sum(target_visible))
             # import pdb

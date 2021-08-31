@@ -105,6 +105,8 @@ class TrackingSampler(torch.utils.data.Dataset):
         valid = False
         while not valid:
             # Select a dataset
+            # import ipdb
+            # ipdb.set_trace()
             dataset = random.choices(self.datasets, self.p_datasets)[0]
 
             is_video_dataset = dataset.is_video_sequence()
@@ -175,7 +177,7 @@ class TrackingSampler(torch.utils.data.Dataset):
                 # import traceback
                 # print(traceback.format_exc())
                 # ipdb.set_trace()
-                print(seq_id, dataset._get_sequence_path(seq_id))
+                print(seq_id)
                 valid = False
         return data
 
@@ -190,7 +192,6 @@ class TrackingSampler(torch.utils.data.Dataset):
             TensorDict - dict containing all the data blocks
         """
         valid = False
-        label = None
         while not valid:
             # Select a dataset
             dataset = random.choices(self.datasets, self.p_datasets)[0]
@@ -247,7 +248,11 @@ class TrackingSampler(torch.utils.data.Dataset):
                                    'search_anno': search_anno['bbox'],
                                    'search_masks': search_masks,
                                    'dataset': dataset.get_name(),
-                                   'test_class': meta_obj_test.get('object_class_name')})
+                                   'test_class': meta_obj_test.get('object_class_name'),
+                                   'words_hidden': torch.from_numpy(seq_info_dict['words']['last_hidden_state']),
+                                   'words_masks': torch.from_numpy(seq_info_dict['words']['masks']),
+                                   'words_pool': torch.from_numpy(seq_info_dict['words']['pool_out']),
+                                   })
 
                 # make data augmentation
                 data = self.processing(data)
@@ -256,6 +261,14 @@ class TrackingSampler(torch.utils.data.Dataset):
                 # check whether data is valid
                 valid = data['valid']
             except:
+                print(dataset.get_name(), seq_id)
+                # if dataset.get_name() == 'tnl2k':
+                #     print(seq_id, dataset._get_sequence_path(seq_id))
+                # else:
+                #     import ipdb
+                #     import traceback
+                #     print(traceback.format_exc())
+                #     ipdb.set_trace()
                 valid = False
 
         return data

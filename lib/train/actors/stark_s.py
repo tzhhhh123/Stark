@@ -58,7 +58,7 @@ class STARKSActor(BaseActor):
         # out_dict: (B, N, C), outputs_coord: (1, B, N, C), target_query: (1, B, N, C)
         return out_dict
 
-    def compute_losses(self, pred_dict, gt_bbox, return_status=True, only_cls=True):
+    def compute_losses(self, pred_dict, gt_bbox, return_status=True):
         # Get boxes
         pred_boxes = pred_dict['pred_boxes']
         if torch.isnan(pred_boxes).any():
@@ -70,23 +70,23 @@ class STARKSActor(BaseActor):
         # compute giou and iou
         # import ipdb
         # ipdb.set_trace()
-        if only_cls:
-            nlp_pred_boxes_vec = box_cxcywh_to_xyxy(pred_dict['nlp_pred_boxes']).view(-1, 4)
-            iou, nlp_iou = box_iou(pred_boxes_vec, gt_boxes_vec)[0], box_iou(nlp_pred_boxes_vec, gt_boxes_vec)[0],
-            labels = iou - nlp_iou
-            cls_loss = torch.nn.SmoothL1Loss()
-            loss = 5 * cls_loss(pred_dict["pred_logits"].view(-1) * 10, labels * 10)
-            import random
-            if random.random() > 0.995:
-                print("loss    ", loss)
-                print("iou     ", iou)
-                print("nlp_iou ", nlp_iou)
-                print("labels  ", labels)
-                print("pred    ", pred_dict["pred_logits"].view(-1))
-            return loss, {"Cls_loss": loss.item()}
-            # cls_args = abs(labels) > 0.1
-            # if True in cls_args:
-            #     cls_loss = self.objective['l1'](pred_dict["pred_logits"].view(-1)[cls_args], labels[cls_args])
+        # if only_cls:
+        #     nlp_pred_boxes_vec = box_cxcywh_to_xyxy(pred_dict['nlp_pred_boxes']).view(-1, 4)
+        #     iou, nlp_iou = box_iou(pred_boxes_vec, gt_boxes_vec)[0], box_iou(nlp_pred_boxes_vec, gt_boxes_vec)[0],
+        #     labels = iou - nlp_iou
+        #     cls_loss = torch.nn.SmoothL1Loss()
+        #     loss = 5 * cls_loss(pred_dict["pred_logits"].view(-1) * 10, labels * 10)
+        #     import random
+        #     if random.random() > 0.995:
+        #         print("loss    ", loss)
+        #         print("iou     ", iou)
+        #         print("nlp_iou ", nlp_iou)
+        #         print("labels  ", labels)
+        #         print("pred    ", pred_dict["pred_logits"].view(-1))
+        #     return loss, {"Cls_loss": loss.item()}
+        #     # cls_args = abs(labels) > 0.1
+        #     # if True in cls_args:
+        #     #     cls_loss = self.objective['l1'](pred_dict["pred_logits"].view(-1)[cls_args], labels[cls_args])
 
         try:
             giou_loss, iou = self.objective['giou'](pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)

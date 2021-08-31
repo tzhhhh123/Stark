@@ -132,6 +132,17 @@ def _save_tracker_output(seq: Sequence, tracker: Tracker, output: dict):
                 timings_file = '{}_logit.txt'.format(base_results_path)
                 save_time(timings_file, data)
 
+        if key == 'nlp_pred_logits':
+            if isinstance(data[0], dict):
+                data_dict = _convert_dict(data)
+
+                for obj_id, d in data_dict.items():
+                    timings_file = '{}_{}_nlp_logit.txt'.format(base_results_path, obj_id)
+                    save_time(timings_file, d)
+            else:
+                timings_file = '{}_nlp_logit.txt'.format(base_results_path)
+                save_time(timings_file, data)
+
 
 def run_sequence(seq: Sequence, tracker: Tracker, debug=False, num_gpu=8):
     """Runs a tracker on a sequence."""

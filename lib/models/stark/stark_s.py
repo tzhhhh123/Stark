@@ -16,7 +16,7 @@ from lib.utils.merge import merge_template_search
 class STARKS(nn.Module):
     """ This is the base class for Transformer Tracking """
 
-    def __init__(self, backbone, transformer, box_head, cls_head, cfg, nlp_transformer=None, nlp_box_head=None):
+    def __init__(self, backbone, transformer, box_head, cfg, nlp_transformer=None, nlp_box_head=None):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -39,12 +39,14 @@ class STARKS(nn.Module):
         self.query_embed = nn.Embedding(self.num_queries, hidden_dim)  # object queries
         self.bottleneck = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)  # the bottleneck layer
 
+        ##to fix
+        # self.gp = nn.AdaptiveAvgPool2d(1, 1)
+        # self.sk_fc = MLP(cfg.MODEL.HIDDEN_DIM, cfg.MODEL.HIDDEN_DIM, cfg.MODEL.HIDDEN_DIM, 1)
+        # self.fuse_head = fuse_head
+
         if self.head_type == "CORNER":
             self.feat_sz_s = int(box_head.feat_sz)
             self.feat_len_s = int(box_head.feat_sz ** 2)
-        for p in self.parameters():
-            p.requires_grad = False
-        self.cls_head = cls_head
 
     def forward(self, img=None, seq_dict=None, mode="backbone", run_box_head=True, run_cls_head=False, caption=None):
 
@@ -67,33 +69,69 @@ class STARKS(nn.Module):
         # Adjust the shapes
         return self.adjust(output_back, pos)
 
-    def forward_transformer(self, seq_dict, run_box_head=True, run_cls_head=False, caption=None):
+    def forward_transformer(self, seq_dict, run_box_head=True, run_cls_head=False, caption=None, only=None):
         if self.aux_loss:
             raise ValueError("Deep supervision is not supported.")
         # Forward the transformer encoder and decoder
-        if self.nlp_transformer is not None:
+        nlp_out = None
+        if only == 'nlp' or only is None:
             nlp_output_embed, nlp_enc_mem = self.nlp_transformer(seq_dict[-1]["feat"], seq_dict[-1]["mask"],
                                                                  self.query_embed.weight,
                                                                  seq_dict[-1]["pos"], return_encoder_output=True,
                                                                  caption=caption)
             nlp_out, nlp_outputs_coord = self.forward_box_head(nlp_output_embed, nlp_enc_mem, self.nlp_box_head)
+            if only == 'nlp':
+                out = {'nlp_pred_boxes': nlp_out['pred_boxes']}
+                return out, None, None
 
-        seq_dict = merge_template_search(seq_dict)
+        if only == 'box' or only is None:
+            seq_dict = merge_template_search(seq_dict)
 
-        output_embed, enc_mem = self.transformer(seq_dict["feat"], seq_dict["mask"],
-                                                 self.query_embed.weight,
-                                                 seq_dict["pos"], return_encoder_output=True,
-                                                 caption=None)
+            output_embed, enc_mem = self.transformer(seq_dict["feat"], seq_dict["mask"],
+                                                     self.query_embed.weight,
+                                                     seq_dict["pos"], return_encoder_output=True,
+                                                     caption=None)
 
-        # Forward the corner head
-        out, outputs_coord = self.forward_box_head(output_embed, enc_mem, self.box_head)
+            # Forward the corner head
+            out, outputs_coord = self.forward_box_head(output_embed, enc_mem, self.box_head)
 
-        if self.nlp_transformer is not None:
-            output_embed = torch.cat((output_embed, nlp_output_embed), dim=-1)
-            out.update({'pred_logits': self.cls_head(output_embed)[-1]})
+        # if self.fuse_head is not None: to fixed
+        # if only is None:
+        #     out, _ = self.forward_box_head_sk(output_embed, enc_mem, nlp_output_embed, nlp_enc_mem, self.box_head)
+
+        if nlp_out is not None:
             out['nlp_pred_boxes'] = nlp_out['pred_boxes']
 
-        return out, outputs_coord, output_embed
+        return out, None, None
+
+    def forward_box_head_sk(self, hs, memory, nlp_hs, nlp_memory, box_head):
+        enc_opt = memory[-self.feat_len_s:].transpose(0, 1)
+        # encoder output for the search region (B, HW, C)
+        dec_opt = hs.squeeze(0).transpose(1, 2)  # (B, C, N)
+        att = torch.matmul(enc_opt, dec_opt)  # (B, HW, N)
+        opt = (enc_opt.unsqueeze(-1) * att.unsqueeze(-2)).permute(
+            (0, 3, 2, 1)).contiguous()  # (B, HW, C, N) --> (B, N, C, HW)
+        bs, Nq, C, HW = opt.size()
+        opt_feat = opt.view(-1, Nq * C, self.feat_sz_s, self.feat_sz_s)  ## -1 = bs
+
+        enc_opt = nlp_memory[-self.feat_len_s:].transpose(0, 1)
+        # encoder output for the search region (B, HW, C)
+        dec_opt = nlp_hs.squeeze(0).transpose(1, 2)  # (B, C, N)
+        att = torch.matmul(enc_opt, dec_opt)  # (B, HW, N)
+        opt = (enc_opt.unsqueeze(-1) * att.unsqueeze(-2)).permute(
+            (0, 3, 2, 1)).contiguous()  # (B, HW, C, N) --> (B, N, C, HW)
+        bs, Nq, C, HW = opt.size()
+        nlp_opt_feat = opt.view(-1, Nq * C, self.feat_sz_s, self.feat_sz_s)  ## -1 = bs
+
+        fuse_tmp = self.gp(opt_feat + nlp_opt_feat)
+        feat_att = self.sk_fc(fuse_tmp)
+
+        fuse_feat = feat_att * opt_feat + (1 - feat_att) * nlp_opt_feat
+
+        outputs_coord = box_xyxy_to_cxcywh(box_head(fuse_feat))
+        outputs_coord_new = outputs_coord.view(bs, 1, 4)
+        out = {'pred_boxes': outputs_coord_new}
+        return out, outputs_coord_new
 
     def forward_box_head(self, hs, memory, box_head):
         """
@@ -101,9 +139,6 @@ class STARKS(nn.Module):
         memory: encoder embeddings (HW1+HW2, B, C)"""
         if self.head_type == "CORNER":
             # adjust shape
-
-            # import ipdb
-            # ipdb.set_trace()
             enc_opt = memory[-self.feat_len_s:].transpose(0, 1)
             # encoder output for the search region (B, HW, C)
             dec_opt = hs.squeeze(0).transpose(1, 2)  # (B, C, N)
@@ -151,16 +186,14 @@ def build_starks(cfg):
     backbone = build_backbone(cfg)  # backbone and positional encoding are built together
     transformer = build_transformer(cfg, caption=False)
     box_head = build_box_head(cfg)
-    nlp_transformer = None
-    cls_head = MLP(cfg.MODEL.HIDDEN_DIM * 2, cfg.MODEL.HIDDEN_DIM, 1, 3)
-    if cfg.TRAIN.CAPTION:
-        nlp_transformer = build_transformer(cfg, caption=True)
-        nlp_box_head = build_box_head(cfg)
+
+    nlp_transformer = build_transformer(cfg, caption=True)
+    nlp_box_head = build_box_head(cfg)
+
     model = STARKS(
         backbone,
         transformer,
         box_head,
-        cls_head,
         cfg=cfg,
         nlp_transformer=nlp_transformer,
         nlp_box_head=nlp_box_head,

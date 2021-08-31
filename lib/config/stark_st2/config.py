@@ -12,6 +12,7 @@ cfg.MODEL.HEAD_TYPE = "CORNER"
 cfg.MODEL.NLAYER_HEAD = 3
 cfg.MODEL.HIDDEN_DIM = 256
 cfg.MODEL.NUM_OBJECT_QUERIES = 1
+cfg.MODEL.TOKEN_SIZE = 0  ##30 use the mid
 cfg.MODEL.POSITION_EMBEDDING = 'sine'  # sine or learned
 cfg.MODEL.PREDICT_MASK = False
 # MODEL.BACKBONE
@@ -27,11 +28,12 @@ cfg.MODEL.TRANSFORMER.DROPOUT = 0.1
 cfg.MODEL.TRANSFORMER.DIM_FEEDFORWARD = 2048
 cfg.MODEL.TRANSFORMER.ENC_LAYERS = 6
 cfg.MODEL.TRANSFORMER.DEC_LAYERS = 6
+cfg.MODEL.TRANSFORMER.WORDS_LAYERS = 0
 cfg.MODEL.TRANSFORMER.PRE_NORM = False
 cfg.MODEL.TRANSFORMER.DIVIDE_NORM = False
-
 # TRAIN
 cfg.TRAIN = edict()
+cfg.TRAIN.CAPTION = False
 cfg.TRAIN.TRAIN_CLS = True
 cfg.TRAIN.LR = 0.0001
 cfg.TRAIN.WEIGHT_DECAY = 0.0001
@@ -138,5 +140,3 @@ def update_config_from_file(filename):
     with open(filename) as f:
         exp_config = edict(yaml.safe_load(f))
         _update_config(cfg, exp_config)
-
-
