@@ -5,15 +5,13 @@ import torch
 import random
 import numpy as np
 from collections import OrderedDict
-from lib.train.admin import env_settings
-from refer import REFER
 
 
-class REFERSeq(BaseVideoDataset):
+class Flickr(BaseVideoDataset):
     """ The refcocoXX dataset.
     """
 
-    def __init__(self, root=None, image_loader=jpeg4py_loader, data_fraction=None, split="", dataname='refcoco'):
+    def __init__(self, root=None, image_loader=jpeg4py_loader, data_fraction=None):
         """
         args:
             root - path to the coco dataset.
@@ -25,46 +23,27 @@ class REFERSeq(BaseVideoDataset):
             split - 'train' or 'val'.
             version - version of coco dataset (2014 or 2017)
         """
-        root = '/mnt/data1/tzh/data/refer/'
-        self.img_pth = os.path.join(root, 'images/mscoco/images/train2014')
-        super().__init__('REFER', root, image_loader)
-        if dataname == 'refcoco':
-            self.refer = REFER(root, dataset='refcoco', splitBy='unc')
-        elif dataname == 'refcoco+':
-            self.refer = REFER(root, dataset='refcoco+', splitBy='unc')
-        elif dataname == 'refcocog':
-            self.refer = REFER(root, dataset='refcocog', splitBy='umd')
-        elif dataname == 'refclef':  ####to fix
-            self.refer = REFER(root, dataset='refclef', splitBy='unc')
-            self.img_pth = os.path.join(root, 'images/saiapr_tc-12')
-        else:
-            raise ValueError('RERFER ERROR')
-
-        self.ref_ids = self.refer.getRefIds(split=split)
-        self.sen2ref = {}
+        root = '/mnt/data1/tzh/data/flickr'
+        self.img_pth = os.path.join(root, 'flickr30k-images')
+        super().__init__('Flickr', root, image_loader)
         self.cap_size = 20
         self.bert_emb_size = 768
-        self.embed_dir = '/mnt/data1/tzh/Stark/refs/{}'.format(dataname)
-        # self.embed_dc = np.load('/mnt/data1/tzh/Stark/{}_roberta_embed.npy'.format(dataname), allow_pickle=True).item()
+        self.embed_dir = '/mnt/data1/tzh/Stark/refs/flickr/'
+        self.seq_items = np.load(os.path.join(root, 'items.npy'), allow_pickle=True)
         self.sequence_list = self._get_sequence_list()
         if data_fraction is not None:
             self.sequence_list = random.sample(self.sequence_list, int(len(self.sequence_list) * data_fraction))
         # self.seq_per_class = self._build_seq_per_class()
 
     def _get_sequence_list(self):
-        seq_list = []
-        for ref_id in self.ref_ids:
-            ref = self.refer.loadRefs(ref_id)[0]
-            for sent_id in ref['sent_ids']:
-                seq_list.append(sent_id)
-                self.sen2ref[sent_id] = ref['ref_id']
+        seq_list = list(range(len(self.seq_items)))
         return seq_list
 
     def is_video_sequence(self):
         return False
 
     def get_name(self):
-        return 'refer'
+        return 'flickr'
 
     def has_class_info(self):
         return False
@@ -76,8 +55,9 @@ class REFERSeq(BaseVideoDataset):
         return len(self.sequence_list)
 
     def get_sequence_info(self, seq_id):
-        seq_id = self.sequence_list[seq_id]
-        bbox = torch.Tensor(self.refer.getRefBox(self.sen2ref[seq_id])).long().view(1, 4)
+        bbox = torch.Tensor(self.seq_items[seq_id]['bbox']).long().view(1, 4)
+        bbox[:, 2] -= bbox[:, 0]
+        bbox[:, 3] -= bbox[:, 1]
 
         '''2021.1.3 To avoid too small bounding boxes. Here we change the threshold to 50 pixels'''
         valid = (bbox[:, 2] > 50) & (bbox[:, 3] > 50)
@@ -99,9 +79,8 @@ class REFERSeq(BaseVideoDataset):
         return {'bbox': bbox, 'valid': valid, 'visible': visible, 'words': caption}
 
     def _get_frames(self, seq_id):
-        ref = self.refer.loadRefs(self.sen2ref[seq_id])[0]
-        path = self.refer.loadImgs(ref['image_id'])[0]['file_name']
-        img = self.image_loader(os.path.join(self.img_pth, path))
+        img_path = self.seq_items[seq_id]['img']
+        img = self.image_loader(img_path)
         return img
 
     def get_frames(self, seq_id=None, frame_ids=None, anno=None):

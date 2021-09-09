@@ -13,3 +13,4 @@ from .AntiUAV import AntiUAV
 from .tnl2k import TNL2K
 from .refer import REFERSeq
 from .otbdataset import OTB
+from .flickr import Flickr

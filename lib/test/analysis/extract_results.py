@@ -100,7 +100,7 @@ def calc_seq_err_robust(pred_bb, anno_bb, dataset, target_visible=None):
 
 
 def extract_results(trackers, dataset, report_name, skip_missing_seq=False, plot_bin_gap=0.05,
-                    exclude_invalid_frames=False, use_nlp=False):
+                    exclude_invalid_frames=False, ex=None):
     settings = env_settings()
     eps = 1e-16
 
@@ -130,7 +130,10 @@ def extract_results(trackers, dataset, report_name, skip_missing_seq=False, plot
         for trk_id, trk in enumerate(trackers):
             # Load results
             base_results_path = '{}/{}'.format(trk.results_dir, seq.name)
-            results_path = '{}.txt'.format(base_results_path)
+            if ex is not None:
+                results_path = '{}_{}.txt'.format(base_results_path, ex)
+            else:
+                results_path = '{}.txt'.format(base_results_path)
 
             if os.path.isfile(results_path):
                 pred_bb = torch.tensor(load_text(str(results_path), delimiter=('\t', ','), dtype=np.float64))
@@ -140,18 +143,11 @@ def extract_results(trackers, dataset, report_name, skip_missing_seq=False, plot
                     break
                 else:
                     raise Exception('Result not found. {}'.format(results_path))
-            if use_nlp:
-                ###nlp miss the first bbox
-                nlp_results_path = '{}_nlp.txt'.format(base_results_path)
-                pred_bb = torch.tensor(load_text(str(nlp_results_path), delimiter=('\t', ','), dtype=np.float64))
-                # conf_path = '{}_logit.txt'.format(base_results_path)
-                # conf = torch.tensor(np.loadtxt(open(conf_path, 'r'), dtype=float))
-                # pred_bb[1:][conf < 0.2] = nlp_pred_bb[conf < 0.2]
-            # Calculate measures
-            # print(sum(target_visible))
-            # import pdb
-            # pdb.set_trace()
 
+            if ex is not None:
+                pred_bb = torch.cat((anno_bb[0].unsqueeze(0), pred_bb), dim=0)
+
+            ####use nlp
             err_overlap, err_center, err_center_normalized, valid_frame = calc_seq_err_robust(
                 pred_bb, anno_bb, seq.dataset, target_visible)
 

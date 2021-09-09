@@ -34,7 +34,7 @@ def check_valid(tensor, type_name):
 class Transformer(nn.Module):
 
     def __init__(self, d_model=512, nhead=8, num_encoder_layers=6, num_obj_query=1, num_words_layers=2,
-                 token_size=30, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1, caption=False,
+                 token_size=20, num_decoder_layers=6, dim_feedforward=2048, dropout=0.1, caption=False,
                  activation="relu", normalize_before=False,
                  return_intermediate_dec=False, divide_norm=False):
         super().__init__()
@@ -164,7 +164,7 @@ class Transformer(nn.Module):
             return memory
         elif mode == "all":
             if self.caption is True:
-                query_embed = words_pool  ###only add
+                query_embed = query_embed + words_pool  ###only add
 
             if self.decoder is not None:
                 tgt = torch.zeros_like(query_embed)

@@ -57,7 +57,7 @@ class LaSOTDataset(BaseDataset):
         target_class = class_name
 
         ###add caption
-        cap_size = 30
+        cap_size = 20
         bert_emb_size = 768
         seq_path = '{}/{}/{}'.format(self.base_path, class_name, sequence_name)
         caption = self.embed_dc[seq_path + '/nlp.txt']

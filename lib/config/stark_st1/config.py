@@ -8,6 +8,8 @@ cfg = edict()
 
 # MODEL
 cfg.MODEL = edict()
+cfg.MODEL.FUSE = False
+cfg.MODEL.CLS_TYPE = ""
 cfg.MODEL.HEAD_TYPE = "CORNER"
 cfg.MODEL.NLAYER_HEAD = 3
 cfg.MODEL.HIDDEN_DIM = 256
@@ -88,7 +90,13 @@ cfg.DATA.TEMPLATE.FACTOR = 2.0
 cfg.DATA.TEMPLATE.CENTER_JITTER = 0
 cfg.DATA.TEMPLATE.SCALE_JITTER = 0
 
-
+# TEST
+cfg.TEST = edict()
+cfg.TEST.TEMPLATE_FACTOR = 2.0
+cfg.TEST.TEMPLATE_SIZE = 128
+cfg.TEST.SEARCH_FACTOR = 5.0
+cfg.TEST.SEARCH_SIZE = 320
+cfg.TEST.EPOCH = 500
 
 def _edict2dict(dest_dict, src_edict):
     if isinstance(dest_dict, dict) and isinstance(src_edict, dict):

@@ -16,7 +16,7 @@ from lib.utils.merge import merge_template_search
 class STARKS(nn.Module):
     """ This is the base class for Transformer Tracking """
 
-    def __init__(self, backbone, transformer, box_head, cfg, nlp_transformer=None, nlp_box_head=None):
+    def __init__(self, backbone, transformer, box_head, cfg, nlp_transformer=None, nlp_box_head=None, fuse_head=None):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -37,12 +37,19 @@ class STARKS(nn.Module):
         self.num_queries = cfg.MODEL.NUM_OBJECT_QUERIES
         hidden_dim = cfg.MODEL.HIDDEN_DIM
         self.query_embed = nn.Embedding(self.num_queries, hidden_dim)  # object queries
+        self.nlp_query_embed = nn.Embedding(self.num_queries, hidden_dim)  # object queries
         self.bottleneck = nn.Conv2d(backbone.num_channels, hidden_dim, kernel_size=1)  # the bottleneck layer
 
-        ##to fix
-        # self.gp = nn.AdaptiveAvgPool2d(1, 1)
-        # self.sk_fc = MLP(cfg.MODEL.HIDDEN_DIM, cfg.MODEL.HIDDEN_DIM, cfg.MODEL.HIDDEN_DIM, 1)
-        # self.fuse_head = fuse_head
+        # to fix
+        self.fuse = cfg.MODEL.FUSE
+        if self.fuse:
+            self.gp = nn.AdaptiveAvgPool2d((1, 1))
+            self.sk_fc = nn.Sequential(
+                nn.Conv2d(hidden_dim, hidden_dim, 1, stride=1),
+                nn.BatchNorm2d(hidden_dim),
+                nn.ReLU()
+            )
+            self.fuse_head = fuse_head
 
         if self.head_type == "CORNER":
             self.feat_sz_s = int(box_head.feat_sz)
@@ -74,9 +81,10 @@ class STARKS(nn.Module):
             raise ValueError("Deep supervision is not supported.")
         # Forward the transformer encoder and decoder
         nlp_out = None
+        nlp_output_embed = None
         if only == 'nlp' or only is None:
             nlp_output_embed, nlp_enc_mem = self.nlp_transformer(seq_dict[-1]["feat"], seq_dict[-1]["mask"],
-                                                                 self.query_embed.weight,
+                                                                 self.nlp_query_embed.weight,
                                                                  seq_dict[-1]["pos"], return_encoder_output=True,
                                                                  caption=caption)
             nlp_out, nlp_outputs_coord = self.forward_box_head(nlp_output_embed, nlp_enc_mem, self.nlp_box_head)
@@ -95,12 +103,12 @@ class STARKS(nn.Module):
             # Forward the corner head
             out, outputs_coord = self.forward_box_head(output_embed, enc_mem, self.box_head)
 
-        # if self.fuse_head is not None: to fixed
-        # if only is None:
-        #     out, _ = self.forward_box_head_sk(output_embed, enc_mem, nlp_output_embed, nlp_enc_mem, self.box_head)
-
         if nlp_out is not None:
             out['nlp_pred_boxes'] = nlp_out['pred_boxes']
+
+        if self.fuse:
+            fuse_out, _ = self.forward_box_head_sk(output_embed, enc_mem, nlp_output_embed, nlp_enc_mem, self.box_head)
+            out['fuse_pred_boxes'] = fuse_out['pred_boxes']
 
         return out, output_embed, nlp_output_embed
 

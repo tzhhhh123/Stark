@@ -38,7 +38,7 @@ class OTBDataset(BaseDataset):
 
         target_class = 0
         ###add caption
-        cap_size = 30
+        cap_size = 20
         bert_emb_size = 768
         seq_path = '{}/{}'.format(self.base_path, sequence_name)
         caption = self.embed_dc[seq_path + '/language.txt']

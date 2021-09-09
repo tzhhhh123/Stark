@@ -55,13 +55,13 @@ def main():
             name = seq.name
             txt_path = os.path.join(root, '{}.txt'.format(name))
             conf_path = os.path.join(root, '{}_logit.txt'.format(name))
+            # nlp_path = os.path.join(root[:-2], '{}_nlp.txt'.format(name))
+            # nlp_conf_path = os.path.join(root[:-2], '{}_nlp_logit.txt'.format(name))
+            fuse_save_path = os.path.join(root, '{}_fuse.txt'.format(name))
 
-            # nlp_path = os.path.join(root[:-5], '{}.txt'.format(name))
-            # nlp_conf_path = os.path.join(root[:-5], '{}_nlp_logit.txt'.format(name))
             nlp_path = os.path.join(root, '{}_nlp.txt'.format(name))
             nlp_conf_path = os.path.join(root, '{}_nlp_logit.txt'.format(name))
 
-            # score_path = os.path.join(root, '{}.txt'.format(name))
             if os.path.exists(txt_path) is False:
                 print('miss' + name)
                 continue
@@ -69,13 +69,14 @@ def main():
             out_res = np.loadtxt(open(txt_path, 'r'), dtype=float)[1:]
             nlp_res = np.loadtxt(open(nlp_path, 'r'), dtype=float)
             conf = np.loadtxt(open(conf_path, 'r'), dtype=float)
-            # nlp_conf = np.loadtxt(open(nlp_conf_path, 'r'), dtype=float)
+            nlp_conf = np.loadtxt(open(nlp_conf_path, 'r'), dtype=float)
+
             gt = np.array(seq.ground_truth_rect[1:])
 
             only_bbox = calc_iou_overlap(out_res, gt)
             only_nlp = calc_iou_overlap(nlp_res, gt)
-            for th in range(1, 20):
-                th0 = th / 20
+            for th in range(1, 40):
+                th0 = th / 40
                 fuse = []
                 for i in range(len(gt)):
                     if conf[i] < th0:
@@ -86,14 +87,17 @@ def main():
                 if th0 not in dc['fuse']:
                     dc['fuse'][th0] = []
                 dc['fuse'][th0].append(fuse_res.mean())
+                # if th == 5:
+                #     np.savetxt(fuse_save_path, fuse, delimiter='\t', fmt='%d')
             dc['box'].append(only_bbox.mean())
             dc['nlp'].append(only_nlp.mean())
-            # argx = only_bbox + 0.3 < only_nlp
-            # argx = conf < 0.3
-            # print(conf[argx])
-            # print(only_bbox[argx])
-            # print(only_nlp[argx])
-            # print(nlp_conf[argx])
+            # argx = (conf < 0.3) & (conf + 0.3 < nlp_conf)
+            argx = conf < 0.3
+            print('conf\n', conf[argx])
+            print('iou\n', only_bbox[argx])
+
+            print('nlp_conf\n', nlp_conf[argx])
+            print('nlp_iou\n', only_nlp[argx])
             # import ipdb
             # ipdb.set_trace()
         except Exception as e:

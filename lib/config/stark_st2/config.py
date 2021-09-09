@@ -8,11 +8,13 @@ cfg = edict()
 
 # MODEL
 cfg.MODEL = edict()
+cfg.MODEL.FUSE = False
+cfg.MODEL.CLS_TYPE = "Focal"
 cfg.MODEL.HEAD_TYPE = "CORNER"
 cfg.MODEL.NLAYER_HEAD = 3
 cfg.MODEL.HIDDEN_DIM = 256
 cfg.MODEL.NUM_OBJECT_QUERIES = 1
-cfg.MODEL.TOKEN_SIZE = 0  ##30 use the mid
+cfg.MODEL.TOKEN_SIZE = 0  ##20 use the mid
 cfg.MODEL.POSITION_EMBEDDING = 'sine'  # sine or learned
 cfg.MODEL.PREDICT_MASK = False
 # MODEL.BACKBONE

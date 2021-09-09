@@ -314,12 +314,14 @@ class TrackingSampler(torch.utils.data.Dataset):
 
     def get_frame_ids_trident(self, visible):
         # get template and search ids in a 'trident' manner
+        # mx = round(len(visible)*0.25)
+        mx = len(visible)
         template_frame_ids_extra = []
         while None in template_frame_ids_extra or len(template_frame_ids_extra) == 0:
             template_frame_ids_extra = []
             # first randomly sample two frames from a video
-            template_frame_id1 = self._sample_visible_ids(visible, num_ids=1)  # the initial template id
-            search_frame_ids = self._sample_visible_ids(visible, num_ids=1)  # the search region id
+            template_frame_id1 = self._sample_visible_ids(visible, num_ids=1, max_id=mx)  # the initial template id
+            search_frame_ids = self._sample_visible_ids(visible, num_ids=1, max_id=mx)  # the search region id
             # get the dynamic template id
             for max_gap in self.max_gap:
                 if template_frame_id1[0] >= search_frame_ids[0]:

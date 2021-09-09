@@ -1,0 +1,1 @@
+sleep 360m;python tracking/test.py stark_st baseline_mlp_less --dataset tnl2k --threads 4

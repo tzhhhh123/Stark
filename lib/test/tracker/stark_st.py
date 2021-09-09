@@ -34,14 +34,17 @@ class STARK_ST(BaseTracker):
         self.z_dict1 = {}
         self.caption = None
         ###to fix
-        self.test_mode = 1
+        self.test_mode = 0
 
     def initialize(self, image, info: dict):
         # forward the template once
-        # if self.test_mode == 1:
-        #     info['init_bbox'] = [0, 0, image.shape[1], image.shape[0]]
-        z_patch_arr, _, z_amask_arr = sample_target(image, info['init_bbox'], self.params.template_factor,
-                                                    output_sz=self.params.template_size)
+        H, W, _ = image.shape
+        if self.test_mode >= 1:
+            z_patch_arr, _, z_amask_arr = sample_target(image, [0, 0, W, H], 1,
+                                                        output_sz=self.params.search_size)  # (x1, y1, w, h)
+        else:
+            z_patch_arr, _, z_amask_arr = sample_target(image, info['init_bbox'], self.params.template_factor,
+                                                        output_sz=self.params.template_size)
         template = self.preprocessor.process(z_patch_arr, z_amask_arr)
         with torch.no_grad():
             self.z_dict1 = self.network.forward_backbone(template)
@@ -62,6 +65,16 @@ class STARK_ST(BaseTracker):
             if self.cfg['TRAIN']['CAPTION'] else None
         # self.caption = None
         print('use language', self.caption is not None)
+        print('test_mode:', self.test_mode)
+
+        if self.test_mode == 2:
+            pred = self.track(image, info)
+            self.state = pred['nlp_bbox']
+            z_patch_arr, _, z_amask_arr = sample_target(image, self.state, self.params.template_factor,
+                                                        output_sz=self.params.template_size)
+            template = self.preprocessor.process(z_patch_arr, z_amask_arr)
+            with torch.no_grad():
+                self.z_dict1 = self.network.forward_backbone(template)
 
     def track(self, image, info: dict = None):
         H, W, _ = image.shape
@@ -77,8 +90,9 @@ class STARK_ST(BaseTracker):
             # seq_dict = merge_template_search(feat_dict_list)
             # run the transformer
             ###to fix seq_dict=seq_dict
+            only = 'nlp' if self.test_mode == 1 else None
             out_dict, _, _ = self.network.forward_transformer(seq_dict=feat_dict_list, run_box_head=True,
-                                                              run_cls_head=True, caption=self.caption, only='nlp')
+                                                              run_cls_head=True, caption=self.caption, only=only)
         # import ipdb
         # ipdb.set_trace()
         pred = {}
@@ -101,6 +115,8 @@ class STARK_ST(BaseTracker):
             pred['nlp_bbox'] = clip_box(self.map_box_back(nlp_pred_box, resize_factor), H, W, margin=10)
             if self.test_mode == 1:
                 self.state = pred['nlp_bbox']
+            # if out_dict["pred_logits"] < 0.2:############ffffix
+            #     self.state = pred['nlp_bbox']
 
         if "pred_logits" in out_dict:
             pred['pred_logits'] = out_dict["pred_logits"]

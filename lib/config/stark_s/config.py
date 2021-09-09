@@ -8,6 +8,8 @@ cfg = edict()
 
 # MODEL
 cfg.MODEL = edict()
+cfg.MODEL.FUSE = False
+cfg.MODEL.CLS_TYPE = ""
 cfg.MODEL.HEAD_TYPE = "CORNER"
 cfg.MODEL.HIDDEN_DIM = 256
 cfg.MODEL.NUM_OBJECT_QUERIES = 1

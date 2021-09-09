@@ -35,7 +35,7 @@ class STARKSActor(BaseActor):
 
         return loss, status
 
-    def forward_pass(self, data, run_box_head, run_cls_head):
+    def forward_pass(self, data, run_box_head, run_cls_head, only=None):
         feat_dict_list = []
         # process the templates
         for i in range(self.settings.num_template):
@@ -54,7 +54,7 @@ class STARKSActor(BaseActor):
         caption = (data['words_hidden'], data['words_masks'].transpose(0, 1),
                    data['words_pool']) if self.settings.caption else None
         out_dict, _, _ = self.net(seq_dict=feat_dict_list, mode="transformer", run_box_head=run_box_head,
-                                  run_cls_head=run_cls_head, caption=caption)  ###tzh add cap
+                                  run_cls_head=run_cls_head, caption=caption, only=only)  ###tzh add cap
         # out_dict: (B, N, C), outputs_coord: (1, B, N, C), target_query: (1, B, N, C)
         return out_dict
 
@@ -67,26 +67,6 @@ class STARKSActor(BaseActor):
         pred_boxes_vec = box_cxcywh_to_xyxy(pred_boxes).view(-1, 4)  # (B,N,4) --> (BN,4) (x1,y1,x2,y2)
         gt_boxes_vec = box_xywh_to_xyxy(gt_bbox)[:, None, :].repeat((1, num_queries, 1)).view(-1, 4).clamp(min=0.0,
                                                                                                            max=1.0)  # (B,4) --> (B,1,4) --> (B,N,4)
-        # compute giou and iou
-        # import ipdb
-        # ipdb.set_trace()
-        # if only_cls:
-        #     nlp_pred_boxes_vec = box_cxcywh_to_xyxy(pred_dict['nlp_pred_boxes']).view(-1, 4)
-        #     iou, nlp_iou = box_iou(pred_boxes_vec, gt_boxes_vec)[0], box_iou(nlp_pred_boxes_vec, gt_boxes_vec)[0],
-        #     labels = iou - nlp_iou
-        #     cls_loss = torch.nn.SmoothL1Loss()
-        #     loss = 5 * cls_loss(pred_dict["pred_logits"].view(-1) * 10, labels * 10)
-        #     import random
-        #     if random.random() > 0.995:
-        #         print("loss    ", loss)
-        #         print("iou     ", iou)
-        #         print("nlp_iou ", nlp_iou)
-        #         print("labels  ", labels)
-        #         print("pred    ", pred_dict["pred_logits"].view(-1))
-        #     return loss, {"Cls_loss": loss.item()}
-        #     # cls_args = abs(labels) > 0.1
-        #     # if True in cls_args:
-        #     #     cls_loss = self.objective['l1'](pred_dict["pred_logits"].view(-1)[cls_args], labels[cls_args])
 
         try:
             giou_loss, iou = self.objective['giou'](pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
@@ -110,6 +90,19 @@ class STARKSActor(BaseActor):
 
             loss_all = loss_all + nlp_loss
 
+        if 'fuse_pred_boxes' in pred_dict:
+            fuse_pred_boxes = pred_dict['fuse_pred_boxes']
+            fuse_pred_boxes_vec = box_cxcywh_to_xyxy(fuse_pred_boxes).view(-1, 4)
+            try:
+                fuse_giou_loss, fuse_iou = self.objective['giou'](fuse_pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
+            except:
+                fuse_giou_loss, fuse_iou = torch.tensor(0.0).cuda(), torch.tensor(0.0).cuda()
+
+            fuse_l1_loss = self.objective['l1'](fuse_pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
+            fuse_loss = self.loss_weight['giou'] * fuse_giou_loss + self.loss_weight['l1'] * fuse_l1_loss
+
+            loss_all = loss_all + fuse_loss * 2
+
         if return_status:
             # status for log
             mean_iou = iou.detach().mean()
@@ -122,6 +115,10 @@ class STARKSActor(BaseActor):
                 nlp_mean_iou = nlp_iou.detach().mean()
                 status["L/Loss"] = nlp_loss.item()
                 status["L/IOU"] = nlp_mean_iou.item()
+            if 'fuse_pred_boxes' in pred_dict:
+                fuse_mean_iou = fuse_iou.detach().mean()
+                status["F/Loss"] = fuse_loss.item()
+                status["F/IOU"] = fuse_mean_iou.item()
             return loss_all, status
         else:
             return loss_all

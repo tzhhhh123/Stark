@@ -5,6 +5,7 @@ class EnvironmentSettings:
         self.pretrained_networks = '/mnt/data1/tzh/Stark/pretrained_networks'
         self.lasot_dir = '/mnt/data1/tzh/data/LaSOT/LaSOTBenchmark'
         self.tnl2k_dir = '/mnt/data1/tzh/data/TNL2K'
+        self.flickr_dir = '/mnt/data1/tzh/data/flickr'
         self.got10k_dir = '/mnt/data1/tzh/Stark/data/got10k'
         self.lasot_lmdb_dir = '/mnt/data1/tzh/data/LaSOT/LaSOTBenchmark_lmdb'
         self.got10k_lmdb_dir = '/mnt/data1/tzh/Stark/data/got10k_lmdb'

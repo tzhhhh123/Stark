@@ -40,7 +40,7 @@ class TNL2K(BaseVideoDataset):
         self.class_to_id = {cls_name: cls_id for cls_id, cls_name in enumerate(self.class_list)}
         self.embed_dc = np.load('/mnt/data1/tzh/Stark/tnl2k_roberta_embed.npy', allow_pickle=True).item()
         self.sequence_list = self._build_sequence_list(vid_ids, split)
-        self.cap_size = 30
+        self.cap_size = 20
         self.bert_emb_size = 768
         if data_fraction is not None:
             self.sequence_list = random.sample(self.sequence_list, int(len(self.sequence_list) * data_fraction))
