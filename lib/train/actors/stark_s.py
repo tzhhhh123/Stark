@@ -60,23 +60,25 @@ class STARKSActor(BaseActor):
 
     def compute_losses(self, pred_dict, gt_bbox, return_status=True):
         # Get boxes
-        pred_boxes = pred_dict['pred_boxes']
-        if torch.isnan(pred_boxes).any():
-            raise ValueError("Network outputs is NAN! Stop Training")
-        num_queries = pred_boxes.size(1)
-        pred_boxes_vec = box_cxcywh_to_xyxy(pred_boxes).view(-1, 4)  # (B,N,4) --> (BN,4) (x1,y1,x2,y2)
+        # num_queries = pred_boxes.size(1)
+        num_queries = 1
         gt_boxes_vec = box_xywh_to_xyxy(gt_bbox)[:, None, :].repeat((1, num_queries, 1)).view(-1, 4).clamp(min=0.0,
                                                                                                            max=1.0)  # (B,4) --> (B,1,4) --> (B,N,4)
 
-        try:
-            giou_loss, iou = self.objective['giou'](pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
-        except:
-            giou_loss, iou = torch.tensor(0.0).cuda(), torch.tensor(0.0).cuda()
-        # compute l1 loss
-        l1_loss = self.objective['l1'](pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
-        # weighted sum
-        loss = self.loss_weight['giou'] * giou_loss + self.loss_weight['l1'] * l1_loss
-        loss_all = loss
+        if "pred_boxes" in pred_dict:
+            pred_boxes = pred_dict['pred_boxes']
+            if torch.isnan(pred_boxes).any():
+                raise ValueError("Network outputs is NAN! Stop Training")
+            pred_boxes_vec = box_cxcywh_to_xyxy(pred_boxes).view(-1, 4)  # (B,N,4) --> (BN,4) (x1,y1,x2,y2)
+            try:
+                giou_loss, iou = self.objective['giou'](pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
+            except:
+                giou_loss, iou = torch.tensor(0.0).cuda(), torch.tensor(0.0).cuda()
+            # compute l1 loss
+            l1_loss = self.objective['l1'](pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
+            # weighted sum
+            loss = self.loss_weight['giou'] * giou_loss + self.loss_weight['l1'] * l1_loss
+        # loss_all = loss
         if 'nlp_pred_boxes' in pred_dict:
             nlp_pred_boxes = pred_dict['nlp_pred_boxes']
             nlp_pred_boxes_vec = box_cxcywh_to_xyxy(nlp_pred_boxes).view(-1, 4)
@@ -88,7 +90,7 @@ class STARKSActor(BaseActor):
             nlp_l1_loss = self.objective['l1'](nlp_pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
             nlp_loss = self.loss_weight['giou'] * nlp_giou_loss + self.loss_weight['l1'] * nlp_l1_loss
 
-            loss_all = loss_all + nlp_loss
+            # loss_all = loss_all + nlp_loss
 
         if 'fuse_pred_boxes' in pred_dict:
             fuse_pred_boxes = pred_dict['fuse_pred_boxes']
@@ -101,16 +103,17 @@ class STARKSActor(BaseActor):
             fuse_l1_loss = self.objective['l1'](fuse_pred_boxes_vec, gt_boxes_vec)  # (BN,4) (BN,4)
             fuse_loss = self.loss_weight['giou'] * fuse_giou_loss + self.loss_weight['l1'] * fuse_l1_loss
 
-            loss_all = loss_all + fuse_loss * 2
+            # loss_all = loss_all + fuse_loss * 2
 
+        loss_all = 0.5 * loss + 0.5 * fuse_loss + 0.2 * nlp_loss
+        # loss_all = fuse_loss
         if return_status:
             # status for log
-            mean_iou = iou.detach().mean()
-            status = {"B/Loss": loss.item(),
-                      "B/GIoU": giou_loss.item(),
-                      "B/L1": l1_loss.item(),
-                      "B/IoU": mean_iou.item(),
-                      "Loss": loss_all.item()}
+            status = {"Loss": loss_all.item()}
+            if 'nlp_pred_boxes' in pred_dict:
+                mean_iou = iou.detach().mean()
+                status["B/Loss"] = loss.item()
+                status["B/IOU"] = mean_iou.item()
             if 'nlp_pred_boxes' in pred_dict:
                 nlp_mean_iou = nlp_iou.detach().mean()
                 status["L/Loss"] = nlp_loss.item()

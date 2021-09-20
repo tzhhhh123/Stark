@@ -121,6 +121,18 @@ def _save_tracker_output(seq: Sequence, tracker: Tracker, output: dict):
                 bbox_file = '{}_nlp.txt'.format(base_results_path)
                 save_bb(bbox_file, data)
 
+        if key == 'fuse_bbox':
+            if isinstance(data[0], (dict, OrderedDict)):
+                data_dict = _convert_dict(data)
+
+                for obj_id, d in data_dict.items():
+                    bbox_file = '{}_{}_fuse.txt'.format(base_results_path, obj_id)
+                    save_bb(bbox_file, d)
+            else:
+                # Single-object mode
+                bbox_file = '{}_fuse.txt'.format(base_results_path)
+                save_bb(bbox_file, data)
+
         if key == 'pred_logits':
             if isinstance(data[0], dict):
                 data_dict = _convert_dict(data)
@@ -217,6 +229,8 @@ def run_dataset(dataset, trackers, debug=False, threads=0, num_gpus=8):
     else:
         mode = 'parallel'
 
+    import random
+    random.shuffle(dataset)
     if mode == 'sequential':
         for seq in dataset:
             for tracker_info in trackers:

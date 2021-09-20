@@ -3,7 +3,7 @@ STARK-ST Model (Spatio-Temporal).
 """
 from .backbone import build_backbone
 from .transformer import build_transformer
-from .head import build_box_head, MLP
+from .head import build_box_head, MLP, build_fuse_head
 from lib.models.stark.stark_s import STARKS
 import torch
 
@@ -12,7 +12,7 @@ class STARKST(STARKS):
     """ This is the base class for Transformer Tracking """
 
     def __init__(self, backbone, transformer, box_head, cls_head=None, nlp_cls_head=None,
-                 nlp_transformer=None, nlp_box_head=None, cfg=None):
+                 nlp_transformer=None, nlp_box_head=None, cfg=None, fuse_head=None):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -21,7 +21,7 @@ class STARKST(STARKS):
             aux_loss: True if auxiliary decoding losses (loss at each decoder layer) are to be used.
         """
         super().__init__(backbone, transformer, box_head, cfg,
-                         nlp_transformer=nlp_transformer, nlp_box_head=nlp_box_head)
+                         nlp_transformer=nlp_transformer, nlp_box_head=nlp_box_head, fuse_head=fuse_head)
         self.cls_head = cls_head
         self.nlp_cls_head = nlp_cls_head
 
@@ -45,9 +45,9 @@ class STARKST(STARKS):
         # Forward the corner head
         if run_cls_head:
             if only != 'nlp':
-                out.update({'pred_logits': torch.sigmoid(self.cls_head(output_embed)[-1])})
+                out.update({'pred_logits': self.cls_head(output_embed).sigmoid()[-1]})
             if only != 'box':
-                out.update({'nlp_pred_logits': torch.sigmoid(self.nlp_cls_head(nlp_output_embed)[-1])})
+                out.update({'nlp_pred_logits': self.nlp_cls_head(nlp_output_embed).sigmoid()[-1]})
 
         return out, output_embed, nlp_output_embed
 
@@ -57,7 +57,9 @@ def build_starkst(cfg):
     transformer = build_transformer(cfg, caption=False)
     box_head = build_box_head(cfg)
     cls_head = MLP(cfg.MODEL.HIDDEN_DIM, cfg.MODEL.HIDDEN_DIM, 1, cfg.MODEL.NLAYER_HEAD)
+    # fuse_head = MLP(cfg.MODEL.HIDDEN_DIM * 2, cfg.MODEL.HIDDEN_DIM, 4, 3)
 
+    fuse_head = build_fuse_head(cfg)
     nlp_transformer = build_transformer(cfg, caption=True)
     nlp_box_head = build_box_head(cfg)
     nlp_cls_head = MLP(cfg.MODEL.HIDDEN_DIM, cfg.MODEL.HIDDEN_DIM, 1, cfg.MODEL.NLAYER_HEAD)
@@ -69,6 +71,7 @@ def build_starkst(cfg):
         nlp_cls_head=nlp_cls_head,
         nlp_transformer=nlp_transformer,
         nlp_box_head=nlp_box_head,
+        fuse_head=fuse_head,
         cfg=cfg,
     )
 

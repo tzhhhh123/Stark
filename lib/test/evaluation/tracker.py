@@ -54,8 +54,10 @@ class Tracker:
         # self.use_ar = use_ar
         self.use_ar = use_ar
         env = env_settings()
+        cfg = self.get_parameters().cfg
+        save_name = "{}_{}_{}".format(self.parameter_name, cfg.TEST.SAVE_MODE, cfg.TEST.INIT_MODE)
         if self.run_id is None:
-            self.results_dir = '{}/{}/{}'.format(env.results_path, self.name, self.parameter_name)
+            self.results_dir = '{}/{}/{}'.format(env.results_path, self.name, save_name)
         else:
             self.results_dir = '{}/{}/{}_{:03d}'.format(env.results_path, self.name, self.parameter_name, self.run_id)
         if result_only:
@@ -122,6 +124,7 @@ class Tracker:
         # # ipdb.set_trace()
         output = {'target_bbox': [],
                   'nlp_bbox': [],
+                  'fuse_bbox': [],
                   'pred_logits': [],
                   'nlp_pred_logits': [],
                   'time': [],
@@ -262,6 +265,19 @@ class Tracker:
                 output_boxes.append(init_state)
                 break
 
+        def frame2video(frames, save_path, dec=1):
+            writer = None
+            save_path = save_path.replace('.mkv', '.mp4')
+            save_path = save_path.replace('.webm', '.mp4')
+            for img in frames:
+                if writer is None:
+                    fourcc = cv.VideoWriter_fourcc(*"mp4v")
+                    writer = cv.VideoWriter(save_path, fourcc, 25 // dec,
+                                            (img.shape[1], img.shape[0]))
+                if writer is not None:
+                    writer.write(img)
+
+        fs = []
         while True:
             ret, frame = cap.read()
 
@@ -271,12 +287,12 @@ class Tracker:
             frame_disp = frame.copy()
 
             # Draw box
-            out = tracker.track(frame)
+            out = tracker.track(frame, only=None)
             state = [int(s) for s in out['target_bbox']]
             output_boxes.append(state)
 
             cv.rectangle(frame_disp, (state[0], state[1]), (state[2] + state[0], state[3] + state[1]),
-                         (0, 255, 0), 5)
+                         (0, 255, 255), 5)
 
             font_color = (0, 0, 0)
             cv.putText(frame_disp, 'Tracking!', (20, 30), cv.FONT_HERSHEY_COMPLEX_SMALL, 1,
@@ -287,6 +303,7 @@ class Tracker:
                        font_color, 1)
 
             # Display the resulting frame
+            fs.append(frame_disp)
             cv.imshow(display_name, frame_disp)
             key = cv.waitKey(1)
             if key == ord('q'):
@@ -308,7 +325,7 @@ class Tracker:
         # When everything done, release the capture
         cap.release()
         cv.destroyAllWindows()
-
+        # frame2video(fs,'/home/tzh/vis.mp4')
         if save_results:
             if not os.path.exists(self.results_dir):
                 os.makedirs(self.results_dir)

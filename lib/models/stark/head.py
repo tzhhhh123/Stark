@@ -20,6 +20,35 @@ def conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1, dilation=1,
             nn.ReLU(inplace=True))
 
 
+class Fusehead(nn.Module):
+    """ Fusehead module"""
+
+    def __init__(self, inplanes=64, channel=256, feat_sz=20, stride=16, freeze_bn=False):
+        super(Fusehead, self).__init__()
+        self.feat_sz = feat_sz
+        self.stride = stride
+        self.img_sz = self.feat_sz * self.stride
+        '''corner'''
+        self.conv1 = conv(inplanes, channel, freeze_bn=freeze_bn)
+        self.conv2 = conv(channel, channel // 2, freeze_bn=freeze_bn)
+        self.conv3 = conv(channel // 2, channel // 4, freeze_bn=freeze_bn)
+        self.conv4 = conv(channel // 4, channel // 8, freeze_bn=freeze_bn)
+        self.pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(channel // 8, 4)
+
+    def forward(self, x):
+        """ Forward pass with input x. feat map d: decoder
+         """
+        x1 = self.conv1(x)
+        x2 = self.conv2(x1)
+        x3 = self.conv3(x2)
+        x4 = self.conv4(x3)
+        pool_x = self.pool(x4).squeeze()
+        out = self.fc(pool_x)
+
+        return out
+
+
 class Corner_Predictor(nn.Module):
     """ Corner Predictor module"""
 
@@ -111,6 +140,27 @@ def build_box_head(cfg):
         feat_sz = int(cfg.DATA.SEARCH.SIZE / stride)
         corner_head = Corner_Predictor(inplanes=cfg.MODEL.HIDDEN_DIM * cfg.MODEL.NUM_OBJECT_QUERIES, channel=256,
                                        feat_sz=feat_sz, stride=stride)
+        return corner_head
+    else:
+        raise ValueError("HEAD TYPE %s is not supported." % cfg.MODEL.HEAD_TYPE)
+
+
+def build_fuse_head(cfg):
+    if cfg.MODEL.FUSE_TYPE == "":
+        return None
+    elif cfg.MODEL.FUSE_TYPE == "MLP":
+        hidden_dim = cfg.MODEL.HIDDEN_DIM
+        # mlp_head = MLP(hidden_dim, hidden_dim, 4, 3)  # dim_in, dim_hidden, dim_out, 3 layers
+        mlp_head = MLP(hidden_dim * 2, hidden_dim, 4, 3)
+        return mlp_head
+    elif cfg.MODEL.FUSE_TYPE == "CORNER":
+        if cfg.MODEL.BACKBONE.DILATION is False:
+            stride = 16
+        else:
+            stride = 8
+        feat_sz = int(cfg.DATA.SEARCH.SIZE / stride)
+        corner_head = Fusehead(inplanes=cfg.MODEL.HIDDEN_DIM, channel=256,
+                               feat_sz=feat_sz, stride=stride)
         return corner_head
     else:
         raise ValueError("HEAD TYPE %s is not supported." % cfg.MODEL.HEAD_TYPE)

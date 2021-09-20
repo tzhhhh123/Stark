@@ -8,9 +8,10 @@ cfg = edict()
 
 # MODEL
 cfg.MODEL = edict()
-cfg.MODEL.FUSE = False
-cfg.MODEL.CLS_TYPE = ""
+cfg.MODEL.CLS_TYPE = "Focal"
 cfg.MODEL.HEAD_TYPE = "CORNER"
+cfg.MODEL.FUSE = False
+cfg.MODEL.FUSE_TYPE = "MLP"
 cfg.MODEL.NLAYER_HEAD = 3
 cfg.MODEL.HIDDEN_DIM = 256
 cfg.MODEL.NUM_OBJECT_QUERIES = 1
@@ -84,7 +85,7 @@ cfg.DATA.SEARCH.CENTER_JITTER = 4.5
 cfg.DATA.SEARCH.SCALE_JITTER = 0.5
 # DATA.TEMPLATE
 cfg.DATA.TEMPLATE = edict()
-cfg.DATA.TEMPLATE.NUMBER = 2
+cfg.DATA.TEMPLATE.NUMBER = 1
 cfg.DATA.TEMPLATE.SIZE = 128
 cfg.DATA.TEMPLATE.FACTOR = 2.0
 cfg.DATA.TEMPLATE.CENTER_JITTER = 0
@@ -97,6 +98,7 @@ cfg.TEST.TEMPLATE_SIZE = 128
 cfg.TEST.SEARCH_FACTOR = 5.0
 cfg.TEST.SEARCH_SIZE = 320
 cfg.TEST.EPOCH = 500
+
 
 def _edict2dict(dest_dict, src_edict):
     if isinstance(dest_dict, dict) and isinstance(src_edict, dict):
@@ -136,5 +138,3 @@ def update_config_from_file(filename):
     with open(filename) as f:
         exp_config = edict(yaml.safe_load(f))
         _update_config(cfg, exp_config)
-
-

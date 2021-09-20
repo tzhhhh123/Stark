@@ -69,6 +69,7 @@ class BaseTrainer:
 
         epoch = -1
         num_tries = 1
+        print(load_latest)
         for i in range(num_tries):
             try:
                 if load_latest:
@@ -89,7 +90,6 @@ class BaseTrainer:
                             self.lr_scheduler.step(epoch - 1)
                     # only save the last 10 checkpoints
                     save_every_epoch = getattr(self.settings, "save_every_epoch", False)
-                    # if epoch > (max_epochs - 10) or save_every_epoch or epoch % 10 == 0:
                     if (epoch > (max_epochs - 50) and epoch % 10 == 0) or save_every_epoch or epoch % 20 == 0:
                         if self._checkpoint_dir:
                             if self.settings.local_rank in [-1, 0]:
@@ -188,39 +188,40 @@ class BaseTrainer:
             raise TypeError
 
         # Load network
-        checkpoint_dict = torch.load(checkpoint_path)
+        checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
         # print(net_type)
         # print(checkpoint_dict['net_type'])
-        # assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
+        assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
 
         if fields is None:
             fields = checkpoint_dict.keys()
         if ignore_fields is None:
             ignore_fields = ['settings']
 
-            # Never load the scheduler. It exists in older checkpoints.
+        # import ipdb
+        # ipdb.set_trace()
+        # Never load the scheduler. It exists in older checkpoints.
         ignore_fields.extend(['lr_scheduler', 'constructor', 'net_type', 'actor_type', 'net_info'])
 
         # Load all fields
         for key in fields:
             if key in ignore_fields:
                 continue
+            # if key == 'net':
+            #     ##update dict
+            #     model2_dict = net.state_dict()
+            #     state_dict = {k: v for k, v in checkpoint_dict[key].items() if k in model2_dict.keys()}
+            #     model2_dict.update(state_dict)
+            #     net.load_state_dict(model2_dict)
+            # elif key == 'optimizer':
+            #     # self.optimizer.load_state_dict(checkpoint_dict[key])
+            #     continue
+
             if key == 'net':
-                ##update dict
-                model2_dict = net.state_dict()
-                state_dict = {k: v for k, v in checkpoint_dict[key].items() if k in model2_dict.keys()}
-                model2_dict.update(state_dict)
-                net.load_state_dict(model2_dict)
-                # net.load_state_dict(checkpoint_dict[key])
+                net.load_state_dict(checkpoint_dict[key])
             elif key == 'optimizer':
                 self.optimizer.load_state_dict(checkpoint_dict[key])
                 # continue
-
-            # if key == 'net':
-            #     net.load_state_dict(checkpoint_dict[key])
-            # elif key == 'optimizer':
-            #     self.optimizer.load_state_dict(checkpoint_dict[key])
-
             else:
                 setattr(self, key, checkpoint_dict[key])
 
@@ -272,8 +273,11 @@ class BaseTrainer:
         print("Loading pretrained model from ", checkpoint_path)
         checkpoint_dict = torch.load(checkpoint_path, map_location='cpu')
 
-        # assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
+        assert net_type == checkpoint_dict['net_type'], 'Network is not of correct type.'
 
-        net.load_state_dict(checkpoint_dict["net"], strict=False)
+        missing_k, unexpected_k = net.load_state_dict(checkpoint_dict["net"], strict=False)
+        print("previous checkpoint is loaded.")
+        print("missing keys: ", missing_k)
+        print("unexpected keys:", unexpected_k)
 
         return True

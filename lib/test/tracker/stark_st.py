@@ -33,50 +33,77 @@ class STARK_ST(BaseTracker):
         # template update
         self.z_dict1 = {}
         self.caption = None
+        DATASET_NAME = dataset_name.upper()
+        if hasattr(self.cfg.TEST.UPDATE_INTERVALS, DATASET_NAME):
+            self.update_intervals = self.cfg.TEST.UPDATE_INTERVALS[DATASET_NAME]
+        else:
+            self.update_intervals = []
         ###to fix
-        self.test_mode = 0
+        # self.init_mode = 0  ##box use template grounding use grounding
+        # self.select = 'fuse'  ##target , nlp ,fuse
+        self.init_mode = self.cfg.TEST.INIT_MODE
+        self.select = self.cfg.TEST.SAVE_MODE  ##target , nlp ,fuse
+        self.only = None  ##only run single head
+
+        print('use language', self.cfg['TRAIN']['CAPTION'])
+        print('init_mode:', self.init_mode)
+        print('save_mode:', self.select)
 
     def initialize(self, image, info: dict):
         # forward the template once
         H, W, _ = image.shape
-        if self.test_mode >= 1:
-            z_patch_arr, _, z_amask_arr = sample_target(image, [0, 0, W, H], 1,
+        ##add captioon
+        self.caption = (
+            torch.from_numpy(info['last_hidden_state']).cuda().unsqueeze(1),
+            torch.from_numpy(info['masks']).cuda().unsqueeze(0),
+            torch.from_numpy(info['pool_out']).cuda().unsqueeze(1)) \
+            if self.cfg['TRAIN']['CAPTION'] else None
+
+        if self.init_mode == "grounding":
+            ###make a fake template
+            self.state = [0, 0, W, H]
+            z_patch_arr, _, z_amask_arr = sample_target(image, self.state, 1,
                                                         output_sz=self.params.search_size)  # (x1, y1, w, h)
+            template = self.preprocessor.process(z_patch_arr, z_amask_arr)
+            with torch.no_grad():
+                self.z_dict1 = self.network.forward_backbone(template)
+
+            ###track a frame
+            x_patch_arr, resize_factor, x_amask_arr = sample_target(image, self.state, 1,
+                                                                    output_sz=self.params.search_size)  # (x1, y1, w, h)
+            search = self.preprocessor.process(x_patch_arr, x_amask_arr)
+
+            with torch.no_grad():
+                x_dict = self.network.forward_backbone(search)
+
+                feat_dict_list = [self.z_dict1, x_dict]
+
+                out_dict, _, _ = self.network.forward_transformer(seq_dict=feat_dict_list, run_box_head=True,
+                                                                  run_cls_head=False, caption=self.caption,
+                                                                  only=None)
+            nlp_pred_boxes = out_dict['nlp_pred_boxes'].view(-1, 4)
+
+            nlp_pred_box = (nlp_pred_boxes.mean(
+                dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
+
+            self.state = clip_box(self.map_box_back(nlp_pred_box, resize_factor), H, W, margin=10)
+
         else:
-            z_patch_arr, _, z_amask_arr = sample_target(image, info['init_bbox'], self.params.template_factor,
-                                                        output_sz=self.params.template_size)
+            self.state = info['init_bbox']
+        z_patch_arr, _, z_amask_arr = sample_target(image, self.state, self.params.template_factor,
+                                                    output_sz=self.params.template_size)
+
         template = self.preprocessor.process(z_patch_arr, z_amask_arr)
         with torch.no_grad():
             self.z_dict1 = self.network.forward_backbone(template)
         # save states
-        self.state = info['init_bbox']
         self.frame_id = 0
         if self.save_all_boxes:
             '''save all predicted boxes'''
             all_boxes_save = info['init_bbox'] * self.cfg.MODEL.NUM_OBJECT_QUERIES
             return {"all_boxes": all_boxes_save}
 
-        ##add captioon
-        dv = template.tensors.device
-        self.caption = (
-            torch.from_numpy(info['last_hidden_state']).to(dv).unsqueeze(1),
-            torch.from_numpy(info['masks']).to(dv).unsqueeze(0),
-            torch.from_numpy(info['pool_out']).to(dv).unsqueeze(1)) \
-            if self.cfg['TRAIN']['CAPTION'] else None
-        # self.caption = None
-        print('use language', self.caption is not None)
-        print('test_mode:', self.test_mode)
-
-        if self.test_mode == 2:
-            pred = self.track(image, info)
-            self.state = pred['nlp_bbox']
-            z_patch_arr, _, z_amask_arr = sample_target(image, self.state, self.params.template_factor,
-                                                        output_sz=self.params.template_size)
-            template = self.preprocessor.process(z_patch_arr, z_amask_arr)
-            with torch.no_grad():
-                self.z_dict1 = self.network.forward_backbone(template)
-
-    def track(self, image, info: dict = None):
+    def track(self, image, info: dict = None, only=None):
         H, W, _ = image.shape
         self.frame_id += 1
         # get the t-th search region
@@ -89,10 +116,9 @@ class STARK_ST(BaseTracker):
             feat_dict_list = [self.z_dict1, x_dict]
             # seq_dict = merge_template_search(feat_dict_list)
             # run the transformer
-            ###to fix seq_dict=seq_dict
-            only = 'nlp' if self.test_mode == 1 else None
+            # only = 'nlp' if self.test_mode == 1 else None
             out_dict, _, _ = self.network.forward_transformer(seq_dict=feat_dict_list, run_box_head=True,
-                                                              run_cls_head=True, caption=self.caption, only=only)
+                                                              run_cls_head=False, caption=self.caption, only=self.only)
         # import ipdb
         # ipdb.set_trace()
         pred = {}
@@ -102,9 +128,15 @@ class STARK_ST(BaseTracker):
             pred_box = (pred_boxes.mean(
                 dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
             # get the final box result
-            self.state = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
+            pred['target_bbox'] = clip_box(self.map_box_back(pred_box, resize_factor), H, W, margin=10)
 
-            pred = {"target_bbox": self.state}
+        if 'fuse_pred_boxes' in out_dict:
+            fuse_pred_boxes = out_dict['fuse_pred_boxes'].view(-1, 4)
+            # Baseline: Take the mean of all pred boxes as the final result
+            fuse_pred_box = (fuse_pred_boxes.mean(
+                dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
+            # get the final box result
+            pred['fuse_bbox'] = clip_box(self.map_box_back(fuse_pred_box, resize_factor), H, W, margin=10)
 
         if 'nlp_pred_boxes' in out_dict:
             nlp_pred_boxes = out_dict['nlp_pred_boxes'].view(-1, 4)
@@ -113,15 +145,22 @@ class STARK_ST(BaseTracker):
                 dim=0) * self.params.search_size / resize_factor).tolist()  # (cx, cy, w, h) [0,1]
             # get the final box result
             pred['nlp_bbox'] = clip_box(self.map_box_back(nlp_pred_box, resize_factor), H, W, margin=10)
-            if self.test_mode == 1:
-                self.state = pred['nlp_bbox']
-            # if out_dict["pred_logits"] < 0.2:############ffffix
-            #     self.state = pred['nlp_bbox']
+
+        self.state = pred[self.select + '_bbox']
 
         if "pred_logits" in out_dict:
             pred['pred_logits'] = out_dict["pred_logits"]
         if "pred_logits" in out_dict:
             pred['nlp_pred_logits'] = out_dict["nlp_pred_logits"]
+        # update template
+        for idx, update_i in enumerate(self.update_intervals):
+            if self.frame_id % update_i == 0:
+                z_patch_arr, _, z_amask_arr = sample_target(image, self.state, self.params.template_factor,
+                                                            output_sz=self.params.template_size)  # (x1, y1, w, h)
+                template_t = self.preprocessor.process(z_patch_arr, z_amask_arr)
+                with torch.no_grad():
+                    self.z_dict1 = self.network.forward_backbone(template_t)
+
         # for debug
         if self.debug:
             x1, y1, w, h = self.state
@@ -129,14 +168,14 @@ class STARK_ST(BaseTracker):
             cv2.rectangle(image_BGR, (int(x1), int(y1)), (int(x1 + w), int(y1 + h)), color=(0, 0, 255), thickness=2)
             save_path = os.path.join(self.save_dir, "%04d.jpg" % self.frame_id)
             cv2.imwrite(save_path, image_BGR)
-        if self.save_all_boxes:
-            '''save all predictions'''
-            all_boxes = self.map_box_back_batch(pred_boxes * self.params.search_size / resize_factor, resize_factor)
-            all_boxes_save = all_boxes.view(-1).tolist()  # (4N, )
-            return {"target_bbox": self.state,
-                    "all_boxes": all_boxes_save}
-        else:
-            return pred
+        return pred
+        # if self.save_all_boxes:###not use
+        #     '''save all predictions'''
+        #     all_boxes = self.map_box_back_batch(pred_boxes * self.params.search_size / resize_factor, resize_factor)
+        #     all_boxes_save = all_boxes.view(-1).tolist()  # (4N, )
+        #     return {"target_bbox": self.state,
+        #             "all_boxes": all_boxes_save}
+        # else:
 
     def map_box_back(self, pred_box: list, resize_factor: float):
         cx_prev, cy_prev = self.state[0] + 0.5 * self.state[2], self.state[1] + 0.5 * self.state[3]

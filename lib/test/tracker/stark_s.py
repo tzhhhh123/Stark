@@ -57,7 +57,7 @@ class STARK_S(BaseTracker):
         # self.caption = None
         print('use language', self.caption is not None)
 
-    def track(self, image, info: dict = None):
+    def track(self, image, info: dict = None, only=None):
         H, W, _ = image.shape
         self.frame_id += 1
         x_patch_arr, resize_factor, x_amask_arr = sample_target(image, self.state, self.params.search_factor,
@@ -71,7 +71,7 @@ class STARK_S(BaseTracker):
             # run the transformer
             ###to fix seq_dict=seq_dict
             out_dict, _, _ = self.network.forward_transformer(seq_dict=feat_dict_list, run_box_head=True,
-                                                              caption=self.caption)
+                                                              caption=self.caption, only=only)
 
         pred_boxes = out_dict['pred_boxes'].view(-1, 4)
         # Baseline: Take the mean of all pred boxes as the final result
