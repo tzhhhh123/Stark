@@ -130,8 +130,11 @@ def extract_results(trackers, dataset, report_name, skip_missing_seq=False, plot
         for trk_id, trk in enumerate(trackers):
             # Load results
             base_results_path = '{}/{}'.format(trk.results_dir, seq.name)
-            if ex is not None:
-                results_path = '{}_{}.txt'.format(base_results_path, ex)
+            if ex is not None and trk.name != 'snlt':
+                if 'nlp' in base_results_path:
+                    results_path = '{}_{}.txt'.format(base_results_path, 'nlp')
+                else:
+                    results_path = '{}_{}.txt'.format(base_results_path, ex)
             else:
                 results_path = '{}.txt'.format(base_results_path)
 

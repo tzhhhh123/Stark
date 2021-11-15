@@ -21,7 +21,8 @@ class LaSOTDataset(BaseDataset):
         self.base_path = self.env_settings.lasot_path
         self.sequence_list = self._get_sequence_list()
         self.clean_list = self.clean_seq_list()
-        self.embed_dc = np.load('/mnt/data1/tzh/Stark/lasot_roberta_embed.npy', allow_pickle=True).item()
+        # self.embed_dc = np.load('/mnt/data1/tzh/Stark/lasot_roberta_embed.npy', allow_pickle=True).item()
+        self.embed_dc = np.load('/mnt/data1/tzh/Stark/nl_lasot_reberta_embed.npy', allow_pickle=True).item()
 
     def clean_seq_list(self):
         clean_lst = []

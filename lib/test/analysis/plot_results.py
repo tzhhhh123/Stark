@@ -142,7 +142,8 @@ def plot_draw_save(y, x, scores, trackers, plot_draw_styles, result_plot_path, p
         tracker = trackers[id_sort]
         disp_name = get_tracker_display_name(tracker)
 
-        legend_text.append('{} [{:.1f}]'.format(disp_name, scores[id_sort]))
+        txt = '{} [{:.1f}]'.format(disp_name, scores[id_sort])
+        legend_text.append(r'\textbf{%s}' % txt)
 
     try:
         # add bold to our method
@@ -255,8 +256,8 @@ def plot_results(trackers, dataset, report_name, merge_results=False,
         auc_curve, auc = get_auc_curve(ave_success_rate_plot_overlap, valid_sequence)
         threshold_set_overlap = torch.tensor(eval_data['threshold_set_overlap'])
 
-        success_plot_opts = {'plot_type': 'success', 'legend_loc': 'lower left', 'xlabel': 'Overlap threshold',
-                             'ylabel': 'Overlap Precision [%]', 'xlim': (0, 1.0), 'ylim': (0, 88), 'title': 'Success'}
+        success_plot_opts = {'plot_type': 'success', 'legend_loc': 'lower left', 'xlabel': r'\textbf{Overlap threshold}',
+                             'ylabel': r'\textbf{Overlap Precision [%]}', 'xlim': (0, 1.0), 'ylim': (0, 88), 'title': 'Success'}
         plot_draw_save(auc_curve, threshold_set_overlap, auc, tracker_names, plot_draw_styles, result_plot_path,
                        success_plot_opts)
 
@@ -269,8 +270,8 @@ def plot_results(trackers, dataset, report_name, merge_results=False,
         threshold_set_center = torch.tensor(eval_data['threshold_set_center'])
 
         precision_plot_opts = {'plot_type': 'precision', 'legend_loc': 'lower right',
-                               'xlabel': 'Location error threshold [pixels]', 'ylabel': 'Distance Precision [%]',
-                               'xlim': (0, 50), 'ylim': (0, 100), 'title': 'Precision plot'}
+                               'xlabel': r'\textbf{Location error threshold [pixels]}', 'ylabel': r'\textbf{Precision [%]}',
+                               'xlim': (0, 50), 'ylim': (0, 100), 'title': 'Precision'}
         plot_draw_save(prec_curve, threshold_set_center, prec_score, tracker_names, plot_draw_styles, result_plot_path,
                        precision_plot_opts)
 
@@ -283,8 +284,8 @@ def plot_results(trackers, dataset, report_name, merge_results=False,
         threshold_set_center_norm = torch.tensor(eval_data['threshold_set_center_norm'])
 
         norm_precision_plot_opts = {'plot_type': 'norm_precision', 'legend_loc': 'lower right',
-                                    'xlabel': 'Location error threshold', 'ylabel': 'Distance Precision [%]',
-                                    'xlim': (0, 0.5), 'ylim': (0, 85), 'title': 'Normalized Precision'}
+                                    'xlabel': r'\textbf{Location error threshold}', 'ylabel': r'\textbf{Precision [%]}',
+                                    'xlim': (0, 0.5), 'ylim': (0, 85), 'title': 'Normalized_Precision'}
         plot_draw_save(prec_curve, threshold_set_center_norm, prec_score, tracker_names, plot_draw_styles,
                        result_plot_path,
                        norm_precision_plot_opts)

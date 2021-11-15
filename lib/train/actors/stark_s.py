@@ -105,7 +105,12 @@ class STARKSActor(BaseActor):
 
             # loss_all = loss_all + fuse_loss * 2
 
-        loss_all = 0.5 * loss + 0.5 * fuse_loss + 0.2 * nlp_loss
+        # loss_all = 0.5 * loss + 0.5 * fuse_loss + 0.2 * nlp_loss
+        # loss_all = loss + 2 * fuse_loss + 0.5 * nlp_loss
+        if 'fuse_pred_boxes' in pred_dict:
+            loss_all = loss + 2 * fuse_loss + 0.5 * nlp_loss
+        else:
+            loss_all = loss + 0.5 * nlp_loss
         # loss_all = fuse_loss
         if return_status:
             # status for log

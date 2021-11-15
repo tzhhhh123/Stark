@@ -207,23 +207,27 @@ class BaseTrainer:
         for key in fields:
             if key in ignore_fields:
                 continue
-            # if key == 'net':
-            #     ##update dict
-            #     model2_dict = net.state_dict()
-            #     state_dict = {k: v for k, v in checkpoint_dict[key].items() if k in model2_dict.keys()}
-            #     model2_dict.update(state_dict)
-            #     net.load_state_dict(model2_dict)
-            # elif key == 'optimizer':
-            #     # self.optimizer.load_state_dict(checkpoint_dict[key])
-            #     continue
 
             if key == 'net':
-                net.load_state_dict(checkpoint_dict[key])
+                ##update dict
+                model2_dict = net.state_dict()
+                state_dict = {k: v for k, v in checkpoint_dict[key].items() if k in model2_dict.keys()}
+                model2_dict.update(state_dict)
+                net.load_state_dict(model2_dict)
             elif key == 'optimizer':
-                self.optimizer.load_state_dict(checkpoint_dict[key])
-                # continue
+                # self.optimizer.state = checkpoint_dict[key]['state']
+                # self.optimizer.param_groups = checkpoint_dict[key]['param_groups']
+                continue
             else:
                 setattr(self, key, checkpoint_dict[key])
+
+            # if key == 'net':
+            #     net.load_state_dict(checkpoint_dict[key])
+            # elif key == 'optimizer':
+            #     self.optimizer.load_state_dict(checkpoint_dict[key])
+            #     continue
+            # else:
+            #     setattr(self, key, checkpoint_dict[key])
 
         # Set the net info
         if load_constructor and 'constructor' in checkpoint_dict and checkpoint_dict['constructor'] is not None:

@@ -43,11 +43,12 @@ class STARK_ST(BaseTracker):
         # self.select = 'fuse'  ##target , nlp ,fuse
         self.init_mode = self.cfg.TEST.INIT_MODE
         self.select = self.cfg.TEST.SAVE_MODE  ##target , nlp ,fuse
-        self.only = None  ##only run single head
+        self.only = 'nlp'  ##only run single head
 
         print('use language', self.cfg['TRAIN']['CAPTION'])
         print('init_mode:', self.init_mode)
         print('save_mode:', self.select)
+        print("interval:", self.update_intervals)
 
     def initialize(self, image, info: dict):
         # forward the template once

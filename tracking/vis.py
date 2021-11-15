@@ -44,10 +44,10 @@ def main():
     for seq in tqdm(dataset):
         name = seq.name
         txt_path = os.path.join(root, '{}.txt'.format(name))
-        nlp_path = os.path.join(root, '{}_nlp.txt'.format(name))
-        conf_path = os.path.join(root, '{}_logit.txt'.format(name))
-        nlp_conf_path = os.path.join(root, '{}_nlp_logit.txt'.format(name))
-        # score_path = os.path.join(root, '{}.txt'.format(name))
+        # nlp_path = os.path.join(root, '{}_nlp.txt'.format(name))
+        # conf_path = os.path.join(root, '{}_logit.txt'.format(name))
+        # nlp_conf_path = os.path.join(root, '{}_nlp_logit.txt'.format(name))
+        # # score_path = os.path.join(root, '{}.txt'.format(name))
         if os.path.exists(txt_path) is False:
             print('miss' + name)
             continue

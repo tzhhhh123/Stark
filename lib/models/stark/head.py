@@ -20,33 +20,121 @@ def conv(in_planes, out_planes, kernel_size=3, stride=1, padding=1, dilation=1,
             nn.ReLU(inplace=True))
 
 
-class Fusehead(nn.Module):
+class Fusehead(nn.Module):  ###v2
     """ Fusehead module"""
 
-    def __init__(self, inplanes=64, channel=256, feat_sz=20, stride=16, freeze_bn=False):
+    def __init__(self, inplanes=256, channel=256, feat_sz=20, stride=16, freeze_bn=False):
         super(Fusehead, self).__init__()
         self.feat_sz = feat_sz
         self.stride = stride
         self.img_sz = self.feat_sz * self.stride
+        self.inplanes = inplanes
         '''corner'''
-        self.conv1 = conv(inplanes, channel, freeze_bn=freeze_bn)
-        self.conv2 = conv(channel, channel // 2, freeze_bn=freeze_bn)
-        self.conv3 = conv(channel // 2, channel // 4, freeze_bn=freeze_bn)
-        self.conv4 = conv(channel // 4, channel // 8, freeze_bn=freeze_bn)
-        self.pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(channel // 8, 4)
+        self.conv5 = nn.Conv2d(inplanes, 1, kernel_size=1)
+        self.mlp = MLP(channel * 3, channel, 4, 3)
 
-    def forward(self, x):
-        """ Forward pass with input x. feat map d: decoder
-         """
-        x1 = self.conv1(x)
-        x2 = self.conv2(x1)
-        x3 = self.conv3(x2)
-        x4 = self.conv4(x3)
-        pool_x = self.pool(x4).squeeze()
-        out = self.fc(pool_x)
+    def forward(self, hm1, hm2, d1, d2):
+        """ Forward pass with input heatmap(hm1,hm2) and decoder output(d1,d2). """
+        x = hm1 + hm2  # (b,hw,c)
+        x = x.reshape(-1, self.feat_sz, self.feat_sz, self.inplanes).permute(0, 3, 1, 2)  # (b,c,h,w)
+        score_map = self.conv5(x)  ##(b,1,h,w)
 
+        score_map = score_map.reshape(-1, 1, self.feat_sz * self.feat_sz)
+        att1 = nn.functional.softmax(score_map, dim=-1)  # (batch, 1,feat_sz * feat_sz)
+        att2 = nn.functional.softmax(1 - score_map, dim=-1)  # (batch, 1,feat_sz * feat_sz)
+        hx1 = torch.matmul(att1, hm1)
+        hx2 = torch.matmul(att2, hm2)
+
+        hx = (hx1 + hx2).unsqueeze(0)
+        out = self.mlp(torch.cat((hx, d1, d2), dim=-1))  # (1,b,1,3*c)
+
+        # out = self.mlp(torch.cat((hx1+d1, hx2+d2), dim=-1))  # (1,b,1,2*c)
         return out
+
+#
+# class Fusehead(nn.Module): ####v3
+#     """ Fusehead module"""
+#
+#     def __init__(self, inplanes=256, channel=256, feat_sz=20, stride=16, freeze_bn=False):
+#         super(Fusehead, self).__init__()
+#         self.feat_sz = feat_sz
+#         self.stride = stride
+#         self.img_sz = self.feat_sz * self.stride
+#         self.inplanes = inplanes
+#         '''corner'''
+#         self.conv1 = conv(inplanes, channel, freeze_bn=freeze_bn)
+#         self.conv2 = conv(channel, channel // 2, freeze_bn=freeze_bn)
+#         self.conv3 = conv(channel // 2, channel // 4, freeze_bn=freeze_bn)
+#         self.conv4 = conv(channel // 4, channel // 8, freeze_bn=freeze_bn)
+#         self.conv5 = nn.Conv2d(channel // 8, 1, kernel_size=1)
+#         self.mlp = MLP(channel * 2, channel, 4, 3)
+#
+#     def forward(self, hm1, hm2, d1, d2):
+#         """ Forward pass with input heatmap(hm1,hm2) and decoder output(d1,d2). """
+#         x = hm1 + hm2  # (b,hw,c)
+#         x = x.reshape(-1, self.feat_sz, self.feat_sz, self.inplanes).permute(0, 3, 1, 2)  # (b,c,h,w)
+#         x1 = self.conv1(x)
+#         x2 = self.conv2(x1)
+#         x3 = self.conv3(x2)
+#         x4 = self.conv4(x3)
+#         score_map = self.conv5(x4)  ##(b,1,h,w)
+#
+#         score_map = score_map.reshape(-1, 1, self.feat_sz * self.feat_sz)
+#         att1 = nn.functional.softmax(score_map, dim=-1)  # (batch, 1,feat_sz * feat_sz)
+#         att2 = nn.functional.softmax(1 - score_map, dim=-1)  # (batch, 1,feat_sz * feat_sz)
+#         hx1 = torch.matmul(att1, hm1)
+#         hx2 = torch.matmul(att2, hm2)
+#
+#         # hx = (hx1 + hx2).unsqueeze(0)
+#         # out = self.mlp(torch.cat((hx, d1, d2), dim=-1))  # (1,b,1,3*c)
+#
+#         out = self.mlp(torch.cat((hx1 + d1, hx2 + d2), dim=-1))  # (1,b,1,2*c)
+#
+#         # import random
+#         # if random.random() > 0.99:
+#         #     import ipdb
+#         #     ipdb.set_trace()
+#         return out
+#
+# class Fusehead(nn.Module):  ####v4
+#     """ Fusehead module"""
+#
+#     def __init__(self, inplanes=256, channel=256, feat_sz=20, stride=16, freeze_bn=False):
+#         super(Fusehead, self).__init__()
+#         self.feat_sz = feat_sz
+#         self.stride = stride
+#         self.img_sz = self.feat_sz * self.stride
+#         self.inplanes = inplanes
+#         '''corner'''
+#         self.conv1 = conv(inplanes, channel, freeze_bn=freeze_bn)
+#         self.conv2 = conv(channel, channel // 2, freeze_bn=freeze_bn)
+#         self.conv3 = conv(channel // 2, channel // 4, freeze_bn=freeze_bn)
+#         self.conv4 = conv(channel // 4, channel // 8, freeze_bn=freeze_bn)
+#         self.conv5 = nn.Conv2d(channel // 8, 1, kernel_size=1)
+#         self.mlp = MLP(channel * 3, channel, 4, 3)
+#
+#     def forward(self, hm1, hm2, d1, d2):
+#         """ Forward pass with input heatmap(hm1,hm2) and decoder output(d1,d2). """
+#         x = hm1 + hm2  # (b,hw,c)
+#         x = x.reshape(-1, self.feat_sz, self.feat_sz, self.inplanes).permute(0, 3, 1, 2)  # (b,c,h,w)
+#         x1 = self.conv1(x)
+#         x2 = self.conv2(x1)
+#         x3 = self.conv3(x2)
+#         x4 = self.conv4(x3)
+#         score_map = self.conv5(x4)  ##(b,1,h,w)
+#
+#         score_map = score_map.reshape(-1, 1, self.feat_sz * self.feat_sz)
+#         att1 = nn.functional.softmax(score_map, dim=-1)  # (batch, 1,feat_sz * feat_sz)
+#         att2 = nn.functional.softmax(1 - score_map, dim=-1)  # (batch, 1,feat_sz * feat_sz)
+#         hx1 = torch.matmul(att1, hm1)
+#         hx2 = torch.matmul(att2, hm2)
+#
+#         # hx = (hx1 + hx2).unsqueeze(0)
+#         # out = self.mlp(torch.cat((hx, d1, d2), dim=-1))  # (1,b,1,3*c)
+#
+#         out = self.mlp(torch.cat(hx1 + hx2, d1, d2, dim=-1))  # (1,b,1,2*c)
+#
+#         return out
 
 
 class Corner_Predictor(nn.Module):

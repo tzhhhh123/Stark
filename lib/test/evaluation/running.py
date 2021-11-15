@@ -155,7 +155,8 @@ def _save_tracker_output(seq: Sequence, tracker: Tracker, output: dict):
                 timings_file = '{}_nlp_logit.txt'.format(base_results_path)
                 save_time(timings_file, data)
 
-
+global gf,gt
+gf,gt = 0,0
 def run_sequence(seq: Sequence, tracker: Tracker, debug=False, num_gpu=8):
     """Runs a tracker on a sequence."""
     '''2021.1.2 Add multiple gpu support'''
@@ -205,7 +206,10 @@ def run_sequence(seq: Sequence, tracker: Tracker, debug=False, num_gpu=8):
         num_frames = len(output['time'])
 
     print('FPS: {}'.format(num_frames / exec_time))
-
+    global gf,gt
+    gf += num_frames
+    gt += exec_time
+    print('All_FPS: {}'.format(gf / gt))
     if not debug:
         _save_tracker_output(seq, tracker, output)
 

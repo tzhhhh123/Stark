@@ -95,9 +95,9 @@ TEST:
   SEARCH_SIZE: 320
   TEMPLATE_FACTOR: 2
   TEMPLATE_SIZE: 128
-  UPDATE_INTERVALS:
-    LASOT: [ 5 ]
-    OTB: [ 5 ]
-    TNL2K: [ 5 ]
+#  UPDATE_INTERVALS:
+#    LASOT: [ ]
+#    OTB: [ ]
+#    TNL2K: [ ]
   SAVE_MODE: fuse
-  INIT_MODE: grounding
+  INIT_MODE: box

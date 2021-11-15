@@ -44,12 +44,6 @@ class STARKS(nn.Module):
         self.fuse_type = cfg.MODEL.FUSE_TYPE
         self.fuse_head = fuse_head
         if self.fuse_type == "CORNER":
-            self.gp = nn.AdaptiveAvgPool2d((1, 1))
-            self.sk_fc = nn.Sequential(
-                nn.Conv2d(hidden_dim, hidden_dim, 1, stride=1),
-                nn.BatchNorm2d(hidden_dim),
-                nn.ReLU()
-            )
             self.feat_sz_s = int(fuse_head.feat_sz)
             self.feat_len_s = int(fuse_head.feat_sz ** 2)
 
@@ -88,6 +82,7 @@ class STARKS(nn.Module):
         if only == 'nlp' or only is None:
             nlp_output_embed, nlp_enc_mem = self.nlp_transformer(seq_dict[-1]["feat"], seq_dict[-1]["mask"],
                                                                  self.nlp_query_embed.weight,
+                                                                 # torch.zeros(self.num_queries, 256).cuda(),
                                                                  seq_dict[-1]["pos"], return_encoder_output=True,
                                                                  caption=caption)
             if run_box_head:
@@ -137,20 +132,16 @@ class STARKS(nn.Module):
         else:
             _, bs, nq, c = hs.size()
 
-            opt_feat = self.att_d2c(hs, memory)
+            # opt_feat = self.att_d2c(hs, memory)
+            #
+            # nlp_opt_feat = self.att_d2c(nlp_hs, nlp_memory)
+            opt_feat = memory[-self.feat_len_s:].transpose(0, 1)
+            # encoder output for the search region (B, HW, C)
 
-            nlp_opt_feat = self.att_d2c(nlp_hs, nlp_memory)
+            nlp_opt_feat = nlp_memory[-self.feat_len_s:].transpose(0, 1)
 
-            ###sk net
-            fuse_tmp = self.gp(opt_feat + nlp_opt_feat)
+            outputs_coord = fuse_head(opt_feat, nlp_opt_feat, hs, nlp_hs).sigmoid()
 
-            feat_att = self.sk_fc(fuse_tmp)
-
-            fuse_feat = feat_att * opt_feat + (1 - feat_att) * nlp_opt_feat
-            # import ipdb
-            # ipdb.set_trace()
-
-            outputs_coord = fuse_head(fuse_feat).sigmoid()
             out = {'pred_boxes': outputs_coord}
             return out, outputs_coord
 
